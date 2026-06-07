@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feedback Loop</title>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body data-page="dashboard" class="dashboard-page">
+  <header class="app-header app-header--dashboard">
+    <div class="app-header__inner">
+      <div class="app-header__brand">
+        <span class="app-header__logo">FL</span>
+        <h1 class="app-header__title">Feedback Loop</h1>
+      </div>
+      <nav class="app-header__nav" aria-label="Main">
+        <a href="dashboard.html" class="app-header__tab app-header__tab--active" aria-current="page">Dashboard</a>
+        <a href="submit-feature-request.html" class="app-header__tab">Submit feature request</a>
+        <a href="settings.html" class="app-header__tab">Settings</a>
+      </nav>
+      <div class="app-header__help-wrap">
+        <button type="button" class="app-header__icon-btn" aria-describedby="help-tooltip" aria-label="Help">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+        <div id="help-tooltip" class="app-header__help-tooltip" role="tooltip">
+          <span class="app-header__help-tooltip-title">Feedback Loop</span>
+          <span class="app-header__help-tooltip-divider" aria-hidden="true"></span>
+          <span class="app-header__help-tooltip-line">AI-native VoC dashboard for support and product teams.</span>
+          <span class="app-header__help-tooltip-line">Log customer feature requests. Surface ranked themes. Ship what matters.</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content main-content--dashboard">
+    <div class="dashboard-layout">
+      <section class="dashboard-col dashboard-col--tickets" aria-labelledby="step-tickets">
+        <div class="panel-card">
+          <header class="panel-card__header">
+            <div class="panel-card__header-text">
+              <h2 class="panel-card__title" id="step-tickets">
+                <span class="step-badge" aria-hidden="true">1</span>
+                Step 1 · Tickets
+              </h2>
+              <p class="panel-card__subtitle">Filter and select tickets to analyse.</p>
+            </div>
+          </header>
+
+          <div class="filter-bar" id="filter-bar"></div>
+
+          <div id="ticket-grid" class="ticket-table-wrap"></div>
+          <div id="ticket-pagination" class="ticket-pagination" hidden></div>
+        </div>
+      </section>
+
+      <section class="dashboard-col dashboard-col--themes" aria-labelledby="step-themes">
+        <div class="panel-card panel-card--themes">
+          <header class="panel-card__header panel-card__header--themes">
+            <div class="panel-card__header-text">
+              <h2 class="panel-card__title" id="step-themes">
+                <span class="step-badge" aria-hidden="true">2</span>
+                Step 2 · Ranked themes
+              </h2>
+              <p class="panel-card__subtitle" id="step-themes-subtitle">Select tickets using the checkboxes, then click Analyse.</p>
+            </div>
+          </header>
+
+          <div id="loading" class="loading-overlay" hidden>
+            <div class="spinner" aria-hidden="true"></div>
+            <p>Analysing tickets…</p>
+          </div>
+
+          <div id="cluster-alert" class="alert alert--error" hidden role="alert"></div>
+
+          <div id="themes-empty" class="themes-empty">
+            <div class="themes-empty__icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/><path d="M9 8m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/><path d="M15 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z"/></svg>
+            </div>
+            <p class="themes-empty__title">No themes yet</p>
+            <p class="themes-empty__subtitle">Select tickets using the checkboxes, then click Analyse.</p>
+            <button type="button" class="btn btn--analyse btn--analyse-empty" id="analyze-btn-empty" disabled>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              <span id="analyze-btn-empty-label">Analyse</span>
+            </button>
+          </div>
+
+          <div id="cluster-results" class="cluster-results" hidden>
+            <div id="theme-panel" class="theme-panel" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="page-footer page-footer--dashboard">
+    <p>Portfolio demo — limited to 5 runs per hour.</p>
+  </footer>
+
+  <div id="ticket-slide-panel" class="ticket-slide-panel" hidden>
+    <div class="ticket-slide-panel__backdrop" id="ticket-slide-panel-backdrop" aria-hidden="true"></div>
+    <aside
+      class="ticket-slide-panel__shell"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="linked-tickets-panel-title"
+    >
+      <div class="ticket-slide-panel__stage">
+        <div id="ticket-slide-panel-linked" class="ticket-slide-panel__view ticket-slide-panel__view--active">
+          <header class="linked-tickets-panel__header">
+            <h2 id="linked-tickets-panel-title" class="linked-tickets-panel__title">Linked tickets</h2>
+            <button type="button" class="linked-tickets-panel__close" id="linked-tickets-panel-close" aria-label="Close">×</button>
+          </header>
+          <div class="linked-tickets-panel__body">
+            <table class="linked-tickets-table">
+              <thead>
+                <tr>
+                  <th scope="col">Ticket ID</th>
+                  <th scope="col">Feature request name</th>
+                  <th scope="col">Category</th>
+                  <th scope="col">Tier</th>
+                  <th scope="col">Priority</th>
+                </tr>
+              </thead>
+              <tbody id="linked-tickets-panel-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="ticket-slide-panel-detail" class="ticket-slide-panel__view" aria-labelledby="ticket-detail-title">
+          <header class="ticket-detail__header">
+            <div class="ticket-detail__header-main">
+              <div class="ticket-detail__ref-row">
+                <span class="ticket-detail__id" id="ticket-detail-id"></span>
+                <span id="ticket-detail-priority"></span>
+              </div>
+              <h3 class="ticket-detail__title" id="ticket-detail-title"></h3>
+            </div>
+            <button type="button" class="ticket-detail__close" id="ticket-detail-close" aria-label="Close ticket details">×</button>
+          </header>
+          <div class="ticket-detail__body">
+            <section class="ticket-detail__section ticket-detail__section--properties">
+              <h4 class="ticket-detail__section-title">Ticket details</h4>
+              <dl class="ticket-detail__grid">
+                <div class="ticket-detail__field">
+                  <dt>Requester</dt>
+                  <dd id="ticket-detail-requester"></dd>
+                </div>
+                <div class="ticket-detail__field">
+                  <dt>Account</dt>
+                  <dd id="ticket-detail-account"></dd>
+                </div>
+                <div class="ticket-detail__field">
+                  <dt>Request type</dt>
+                  <dd id="ticket-detail-category"></dd>
+                </div>
+                <div class="ticket-detail__field">
+                  <dt>Tier</dt>
+                  <dd id="ticket-detail-tier"></dd>
+                </div>
+                <div class="ticket-detail__field">
+                  <dt>Submitted</dt>
+                  <dd id="ticket-detail-date"></dd>
+                </div>
+              </dl>
+            </section>
+            <section class="ticket-detail__section">
+              <h4 class="ticket-detail__section-title">Description</h4>
+              <p class="ticket-detail__desc" id="ticket-detail-desc"></p>
+            </section>
+            <section class="ticket-detail__section" id="ticket-detail-impact-section" hidden>
+              <h4 class="ticket-detail__section-title">Business impact</h4>
+              <p class="ticket-detail__impact" id="ticket-detail-impact"></p>
+            </section>
+          </div>
+          <footer class="ticket-detail__footer">
+            <button type="button" class="btn btn--danger btn--compact" id="ticket-detail-delete" hidden>Remove submission</button>
+            <div class="ticket-detail__footer-nav">
+              <button type="button" class="btn btn--secondary" id="ticket-detail-prev">← Previous</button>
+              <button type="button" class="btn btn--secondary" id="ticket-detail-next">Next →</button>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script src="app.js" data-proxy-url="http://localhost:8787"></script>
+</body>
+</html>

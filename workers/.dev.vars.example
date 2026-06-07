@@ -1,0 +1,8 @@
+ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
+
+# Local dev: raise synthesis limit (production default is 5/hour)
+RATE_LIMIT_MAX=50
+
+# Optional overrides
+# ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+# DEMO_ENABLED=true

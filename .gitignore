@@ -1,0 +1,6 @@
+.wrangler/
+.dev.vars
+node_modules/
+.cursor/
+*.docx
+~$*

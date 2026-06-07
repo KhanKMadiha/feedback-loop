@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Submit Feature Request, Feedback Loop</title>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="intake" class="intake-page">
+  <header class="app-header app-header--dashboard">
+    <div class="app-header__inner">
+      <div class="app-header__brand">
+        <span class="app-header__logo">FL</span>
+        <h1 class="app-header__title">Feedback Loop</h1>
+      </div>
+      <nav class="app-header__nav" aria-label="Main">
+        <a href="dashboard.html" class="app-header__tab">Dashboard</a>
+        <a href="submit-feature-request.html" class="app-header__tab app-header__tab--active" aria-current="page">Submit feature request</a>
+        <a href="settings.html" class="app-header__tab">Settings</a>
+      </nav>
+      <div class="app-header__help-wrap">
+        <button type="button" class="app-header__icon-btn" aria-describedby="help-tooltip" aria-label="Help">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+        <div id="help-tooltip" class="app-header__help-tooltip" role="tooltip">
+          <span class="app-header__help-tooltip-title">Feedback Loop</span>
+          <span class="app-header__help-tooltip-divider" aria-hidden="true"></span>
+          <span class="app-header__help-tooltip-line">AI-native VoC dashboard for support and product teams.</span>
+          <span class="app-header__help-tooltip-line">Log customer feature requests. Surface ranked themes. Ship what matters.</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content main-content--intake">
+    <header class="settings-page__header intake-hero">
+      <h2 class="settings-page__title">Submit a feature request</h2>
+      <p class="settings-page__subtitle">Structured VoC intake, saved locally and included on the dashboard for theme ranking.</p>
+    </header>
+
+    <div class="panel-card intake-form-panel">
+      <form id="intake-form" class="intake-form" novalidate>
+        <div class="intake-form-grid">
+          <div class="intake-form-field">
+            <label for="account_name">Account name</label>
+            <input type="text" id="account_name" name="account_name" required placeholder="e.g. Acme Engineering">
+          </div>
+
+          <div class="intake-form-field">
+            <label for="submitted_by">Submitted by (email)</label>
+            <input type="email" id="submitted_by" name="submitted_by" required placeholder="agent@company.com">
+          </div>
+
+          <div class="intake-form-field">
+            <label for="account_tier">Account tier</label>
+            <select id="account_tier" name="account_tier" required>
+              <option value="" disabled selected>Select tier…</option>
+              <option value="Enterprise">Enterprise</option>
+              <option value="Pro">Pro</option>
+              <option value="Free">Free</option>
+            </select>
+          </div>
+
+          <div class="intake-form-field">
+            <label for="feature_request_name">Feature request name</label>
+            <input type="text" id="feature_request_name" name="feature_request_name" required placeholder="Short summary of the feature request">
+          </div>
+
+          <div class="intake-form-field">
+            <label for="product_area">Product area</label>
+            <select id="product_area" name="product_area" required>
+              <option value="" disabled selected>Select product area…</option>
+              <option value="Authentication">Authentication</option>
+              <option value="API">API</option>
+              <option value="Integrations">Integrations</option>
+              <option value="User Management">User Management</option>
+              <option value="Billing">Billing</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="intake-form-field">
+            <div class="intake-form-field__head">
+              <label for="platform">Platform</label>
+              <p class="form-field__hint" id="platform-hint">The product or tool the customer is using</p>
+            </div>
+            <input type="text" id="platform" name="platform" required placeholder="e.g. Cloudflare Workers" aria-describedby="platform-hint">
+          </div>
+
+          <div id="product-area-other-wrap" class="intake-form-field intake-form-grid__full form-field--conditional" hidden>
+            <label for="product_area_other">Specify product area</label>
+            <input type="text" id="product_area_other" name="product_area_other" placeholder="Describe the product area">
+          </div>
+
+          <div class="intake-form-field">
+            <label id="priority-label" for="priority-trigger">Priority</label>
+            <div class="priority-select" id="priority-select">
+              <input type="hidden" name="priority" id="priority" required>
+              <button type="button" class="priority-select__trigger" id="priority-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="priority-label">
+                <span class="priority-select__value priority-select__placeholder">Select priority…</span>
+              </button>
+              <ul class="priority-select__list" id="priority-list" role="listbox" hidden>
+                <li class="priority-select__option" role="option" data-value="Critical: Blocking platform use or causing significant business risk" tabindex="-1">
+                  <span class="priority-select__badge priority-select__badge--critical">Critical</span>
+                  <span class="priority-select__definition">Blocking platform use or causing significant business risk</span>
+                </li>
+                <li class="priority-select__option" role="option" data-value="High: Significant workflow impact preventing effective use" tabindex="-1">
+                  <span class="priority-select__badge priority-select__badge--high">High</span>
+                  <span class="priority-select__definition">Significant workflow impact preventing effective use</span>
+                </li>
+                <li class="priority-select__option" role="option" data-value="Medium: Improves product experience but not blocking use" tabindex="-1">
+                  <span class="priority-select__badge priority-select__badge--medium">Medium</span>
+                  <span class="priority-select__definition">Improves product experience but not blocking use</span>
+                </li>
+                <li class="priority-select__option" role="option" data-value="Low: Nice to have, enhances experience for some users" tabindex="-1">
+                  <span class="priority-select__badge priority-select__badge--low">Low</span>
+                  <span class="priority-select__definition">Nice to have, enhances experience for some users</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="intake-form-field">
+            <label for="priority_justification">Priority justification</label>
+            <input type="text" id="priority_justification" name="priority_justification" required placeholder="Why this priority level applies">
+          </div>
+
+          <div class="intake-form-field intake-form-grid__full">
+            <label for="feature_request_description">Feature request description</label>
+            <textarea id="feature_request_description" name="feature_request_description" required placeholder="Full context from the customer conversation…"></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn--primary btn--analyse btn--submit-ticket" id="submit-btn">Submit feature request</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer class="page-footer page-footer--dashboard">
+    <p>Portfolio demo — limited to 5 runs per hour.</p>
+  </footer>
+
+  <div id="toast" class="toast" hidden role="status" aria-live="polite">
+    <p class="toast__message" id="toast-message"></p>
+    <button type="button" class="toast__close" id="toast-close" aria-label="Dismiss notification">×</button>
+  </div>
+
+  <script src="app.js" data-proxy-url="http://localhost:8787"></script>
+</body>
+</html>
