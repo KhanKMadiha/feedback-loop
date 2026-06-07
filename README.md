@@ -1,39 +1,49 @@
-# Feature Signal
+# Feedback Loop
 
 Prototype **Voice of the Customer (VoC)** pipeline: support feature requests → AI-assisted grouping → enterprise-weighted prioritisation → engineering-ready briefs.
 
-Built as a portfolio project aligned with product quality / user operations workflows (structured intake, ranked themes, business-context prioritisation).
+Built as a portfolio project by [Madiha Khan](https://madihaintech.me) — aligned with product quality / user operations workflows (structured intake, ranked themes, business-context prioritisation).
+
+**Repository:** [github.com/KhanKMadiha/feedback-loop](https://github.com/KhanKMadiha/feedback-loop)
 
 ## What it demonstrates
 
-- **VoC intake** — Capture structured feature requests by **request type** (Authentication, API, Billing, etc.), account tier, and context—with local persistence.
-- **Ranked themes** — Claude groups tickets by theme, scores priority 1–10 from frequency and account tier (Enterprise > Pro > Free), and returns summaries, recommended actions, and affected accounts.
+- **VoC intake** — Capture structured feature requests by **request type** (Authentication, API, Billing, etc.), account tier, and context — with local persistence.
+- **Ranked themes** — Claude groups selected tickets by theme, scores priority 1–10 from frequency and account tier (Enterprise > Pro > Free), and returns summaries, recommended actions, and affected accounts.
+- **Product briefs** — Export a formatted PDF brief for engineering, with per-ticket supporting evidence.
 - **Secure API access** — Cloudflare Worker proxies the Claude API so keys never ship to the browser.
 
 **Request types:** Authentication · API · Integrations · User Management · Billing
 
-V1 focuses on **feature requests**; the same pipeline extends to bug triage and agentic prioritisation.
+## Demo flow
+
+1. **Submit feature request** — `/src/submit-feature-request.html`
+2. **Dashboard** — `/src/dashboard.html`
+   - **Step 1:** Filter and select tickets
+   - **Step 2:** Analyse → ranked themes → Product brief (PDF)
 
 ## Run locally
 
-**Do not paste the project folder path alone into the terminal** — that causes `zsh: permission denied`. Use `cd` first, or run `start.sh` below.
-
-From the project root:
+Clone the repo, then start the static file server:
 
 ```bash
-cd /Users/maryamkhan/Madiha/Projects/feature-signal
+git clone https://github.com/KhanKMadiha/feedback-loop.git
+cd feedback-loop
 npm start
 ```
 
-Or, from anywhere:
+Or, from anywhere (no `cd` required):
 
 ```bash
-bash /Users/maryamkhan/Madiha/Projects/feature-signal/start.sh
+git clone https://github.com/KhanKMadiha/feedback-loop.git
+bash feedback-loop/start.sh
 ```
+
+**Do not paste a folder path alone into the terminal** — that causes `zsh: permission denied`. Always use `cd` or `bash start.sh`.
 
 Then open:
 
-- http://localhost:3000/src/index.html — VoC intake
+- http://localhost:3000/src/submit-feature-request.html — VoC intake
 - http://localhost:3000/src/dashboard.html — VoC dashboard (tickets → ranked themes)
 
 For **Analyse tickets**, start the proxy in a second terminal:
@@ -67,18 +77,18 @@ wrangler kv namespace create RATE_LIMIT --preview
 
 wrangler secret put ANTHROPIC_API_KEY
 wrangler secret put ALLOWED_ORIGINS
-# e.g. https://feature-signal.pages.dev,https://your-portfolio.com
+# e.g. https://feedback-loop.pages.dev,https://madihaintech.me
 
 wrangler deploy
 ```
 
-Update `data-proxy-url` on the `<script>` tags in `src/index.html` and `src/dashboard.html` to your Worker URL (e.g. `https://feature-signal-proxy.<account>.workers.dev`).
+Update `data-proxy-url` on the `<script>` tags in `src/dashboard.html` and `src/submit-feature-request.html` to your Worker URL (e.g. `https://feedback-loop-proxy.<account>.workers.dev`).
 
 ### 2. Frontend (Cloudflare Pages)
 
 Deploy the repo root as a static site. Demo URLs:
 
-- `/src/index.html` — intake
+- `/src/submit-feature-request.html` — intake
 - `/src/dashboard.html` — dashboard
 
 ## Demo abuse safeguards
@@ -94,15 +104,22 @@ The Worker proxy includes:
 
 Also set a **monthly spend limit** in the [Anthropic console](https://console.anthropic.com/settings/billing) as a billing backstop.
 
+## Stack
+
+- Vanilla HTML / CSS / JavaScript
+- Claude Sonnet 4 (Anthropic Messages API)
+- Cloudflare Workers + KV
+- jsPDF (product brief export)
+
 ## Project structure
 
 ```
-feature-signal/
+feedback-loop/
   data/mock-tickets.json   # Sample tickets by request type
-  src/                     # Intake + dashboard (vanilla HTML/CSS/JS)
+  src/                     # Intake, dashboard, settings
   workers/proxy.js         # Claude API proxy (rate limit + origin check)
 ```
 
 ## Application note (portfolio / job applications)
 
-*Feature Signal is a prototype VoC tool I built to mirror how user operations teams turn scattered support feedback into actionable product signal. Support agents submit structured tickets by request type (e.g. Authentication, API, Billing) and account tier; the dashboard loads that data and uses Claude (via a Cloudflare Worker proxy) to synthesise signal by theme, score priority using frequency and enterprise weighting, and surface engineering briefs with recommended actions and affected accounts. It demonstrates the feedback loop between frontline support and engineering—AI-assisted synthesis with human-in-the-loop intake—and the kind of tooling infrastructure that makes quality operations scalable.*
+*Feedback Loop is a prototype VoC tool I built to mirror how user operations teams turn scattered support feedback into actionable product signal. Support agents submit structured tickets by request type (e.g. Authentication, API, Billing) and account tier; the dashboard loads that data and uses Claude (via a Cloudflare Worker proxy) to synthesise signal by theme, score priority using frequency and enterprise weighting, and surface engineering briefs with recommended actions and affected accounts. It demonstrates the feedback loop between frontline support and engineering — AI-assisted synthesis with human-in-the-loop intake — and the kind of tooling infrastructure that makes quality operations scalable.*
