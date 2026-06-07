@@ -10,6 +10,8 @@ Built because when the process lives in a system, nothing falls through the gaps
 
 **[Live demo](https://feedback-loop.pages.dev/src/dashboard.html)** · **[Case study](https://madihaintech.me/feedback-loop.html)** · **[Source](https://github.com/KhanKMadiha/feedback-loop)**
 
+Mock tickets are already loaded. Submit your own or use the existing ones, then open the dashboard to run the analysis and export a brief.
+
 ---
 
 ## How it works
@@ -41,10 +43,6 @@ Download a PDF document with the full brief and supporting evidence for each tic
 ### PDF export
 
 ![PDF export](screenshots/03-pdf-export.png)
-
----
-
-Mock tickets are already loaded. Submit your own or use the existing ones, then open the dashboard to run the analysis and export a brief.
 
 ---
 
