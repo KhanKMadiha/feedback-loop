@@ -101,9 +101,9 @@ feedback-loop/
 
 ## Other projects
 
-Support Ticket Analyser: [khankmadiha.github.io/support-ticket-analyser](https://khankmadiha.github.io/support-ticket-analyser)
-Articulate: [articulate-app-production.up.railway.app](https://articulate-app-production.up.railway.app)
-Portfolio: [madihaintech.me](https://madihaintech.me)
+Support Ticket Analyser: [khankmadiha.github.io/support-ticket-analyser](https://khankmadiha.github.io/support-ticket-analyser)  
+Articulate: [articulate-app-production.up.railway.app](https://articulate-app-production.up.railway.app)  
+Portfolio: [madihaintech.me](https://madihaintech.me)  
 
 ---
 
