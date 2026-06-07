@@ -46,6 +46,14 @@ Download a PDF document with the full brief and supporting evidence for each tic
 
 ---
 
+## Why priority is weighted by account tier
+
+When ten free users and one enterprise account ask for the same thing, they are not equal requests. The enterprise account has a contract, a renewal conversation, and a support engineer whose time depends on the resolution.
+
+Feedback Loop scores priority using both frequency and account tier so the output reflects how a product team would actually prioritise, not just how many customers asked.
+
+---
+
 ## Built with
 
 Cursor · JavaScript · Anthropic Claude API · Cloudflare Workers · Workers KV · jsPDF · Cloudflare Pages
