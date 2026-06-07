@@ -38,10 +38,16 @@
     "CLI & DevOps": "Integrations",
   };
 
-  /** Read proxy base URL from script tag (keeps API key off the client). */
+  const PRODUCTION_PROXY_URL = "https://feedback-loop-proxy.madiha00.workers.dev";
+
+  /** Read proxy base URL from script tag; localhost always uses the dev worker. */
   function getProxyUrl() {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      return "http://localhost:8787";
+    }
     const script = document.querySelector('script[src*="app.js"]');
-    return (script && script.dataset.proxyUrl) || "http://localhost:8787";
+    return (script && script.dataset.proxyUrl) || PRODUCTION_PROXY_URL;
   }
 
   // --- Storage ---

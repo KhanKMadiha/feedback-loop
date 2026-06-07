@@ -6,6 +6,13 @@ Built as a portfolio project by [Madiha Khan](https://madihaintech.me) — align
 
 **Repository:** [github.com/KhanKMadiha/feedback-loop](https://github.com/KhanKMadiha/feedback-loop)
 
+## Live demo
+
+- **Dashboard:** https://feedback-loop.pages.dev/src/dashboard.html
+- **Submit feature request:** https://feedback-loop.pages.dev/src/submit-feature-request.html
+
+AI analysis runs via a Cloudflare Worker proxy (5 synthesis runs per IP per hour on the public demo).
+
 ## What it demonstrates
 
 - **VoC intake** — Capture structured feature requests by **request type** (Authentication, API, Billing, etc.), account tier, and context — with local persistence.
@@ -82,11 +89,18 @@ wrangler secret put ALLOWED_ORIGINS
 wrangler deploy
 ```
 
-Update `data-proxy-url` on the `<script>` tags in `src/dashboard.html` and `src/submit-feature-request.html` to your Worker URL (e.g. `https://feedback-loop-proxy.<account>.workers.dev`).
+Production Worker URL: `https://feedback-loop-proxy.madiha00.workers.dev`
+
+Update `data-proxy-url` on the `<script>` tags in `src/dashboard.html` and `src/submit-feature-request.html` if you deploy under a different account subdomain. Local dev automatically uses `http://localhost:8787`.
 
 ### 2. Frontend (Cloudflare Pages)
 
-Deploy the repo root as a static site. Demo URLs:
+```bash
+# From the repo root
+wrangler pages deploy . --project-name feedback-loop --branch main
+```
+
+Demo URLs:
 
 - `/src/submit-feature-request.html` — intake
 - `/src/dashboard.html` — dashboard
