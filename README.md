@@ -95,6 +95,17 @@ Update `data-proxy-url` on the `<script>` tags in `src/dashboard.html` and `src/
 
 ### 2. Frontend (Cloudflare Pages)
 
+**Automatic deploys (recommended):** This repo includes a GitHub Actions workflow (`.github/workflows/deploy-pages.yml`) that deploys to Pages on every push to `main`. Add these secrets in GitHub → **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+|--------|--------|
+| `CLOUDFLARE_API_TOKEN` | API token with **Cloudflare Pages — Edit** permission ([create here](https://dash.cloudflare.com/profile/api-tokens)) |
+| `CLOUDFLARE_ACCOUNT_ID` | `abb09903dc138368f3cd06baf5b3edbe` |
+
+> **Note:** This Pages project was created via direct upload (Wrangler), so Cloudflare dashboard Git integration cannot be added to it. GitHub Actions provides the same result — deploy on every push.
+
+**Manual deploy:**
+
 ```bash
 # From the repo root
 wrangler pages deploy . --project-name feedback-loop --branch main
