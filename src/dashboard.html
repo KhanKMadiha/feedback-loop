@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260611e">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -39,12 +39,12 @@
   </header>
 
   <main class="main-content main-content--dashboard">
-    <nav class="dashboard-view-tabs" aria-label="Dashboard views">
-      <button type="button" class="dashboard-view-tab dashboard-view-tab--active" data-dashboard-view="insights" aria-current="page">Insights</button>
-      <button type="button" class="dashboard-view-tab" data-dashboard-view="analysis">Analysis</button>
+    <nav class="dashboard-view-tabs dashboard-view-toggle" role="tablist" aria-label="Dashboard views">
+      <button type="button" class="dashboard-view-tab dashboard-view-tab--active" role="tab" data-dashboard-view="insights" aria-selected="true" aria-controls="dashboard-insights" id="dashboard-view-tab-insights">Insights</button>
+      <button type="button" class="dashboard-view-tab" role="tab" data-dashboard-view="analysis" aria-selected="false" aria-controls="dashboard-analysis" id="dashboard-view-tab-analysis">Analysis</button>
     </nav>
 
-    <div id="dashboard-insights" class="dashboard-insights">
+    <div id="dashboard-insights" class="dashboard-insights" role="tabpanel" aria-labelledby="dashboard-view-tab-insights">
       <div class="insights-kpis">
         <article class="insights-kpi panel-card" aria-label="Total requests">
           <span class="insights-kpi__label">Total requests</span>
@@ -85,7 +85,7 @@
       <p id="insights-empty" class="insights-empty" hidden>No tickets available yet. Import tickets in Settings or submit a feature request.</p>
     </div>
 
-    <div id="dashboard-analysis" class="dashboard-layout" hidden>
+    <div id="dashboard-analysis" class="dashboard-layout" role="tabpanel" aria-labelledby="dashboard-view-tab-analysis" hidden>
       <section class="dashboard-col dashboard-col--tickets" aria-labelledby="step-tickets">
         <div class="panel-card">
           <header class="panel-card__header">

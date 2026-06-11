@@ -2719,6 +2719,11 @@ Ticket ids use the format "#184521".`;
           },
         },
       });
+
+      requestAnimationFrame(() => {
+        categoryChart?.resize();
+        tierChart?.resize();
+      });
     }
 
     function switchDashboardView(view) {
@@ -2727,8 +2732,8 @@ Ticket ids use the format "#184521".`;
       viewTabs.forEach((tab) => {
         const isActive = tab.dataset.dashboardView === dashboardView;
         tab.classList.toggle("dashboard-view-tab--active", isActive);
-        if (isActive) tab.setAttribute("aria-current", "page");
-        else tab.removeAttribute("aria-current");
+        tab.setAttribute("aria-selected", isActive ? "true" : "false");
+        tab.tabIndex = isActive ? 0 : -1;
       });
 
       if (insightsView) insightsView.hidden = dashboardView !== "insights";
