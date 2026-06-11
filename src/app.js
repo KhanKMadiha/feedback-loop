@@ -798,8 +798,7 @@ Ticket ids use the format "#184521".`;
         analyzeBtnEmpty.classList.toggle("btn--primary", selectedCount > 0);
 
         if (analyzeBtnEmptyLabel) {
-          analyzeBtnEmptyLabel.textContent =
-            selectedCount > 0 ? `Analyse ${selectedCount} selected` : "Analyse";
+          analyzeBtnEmptyLabel.textContent = "Analyse";
         }
 
         if (selectedCount > 0) {
