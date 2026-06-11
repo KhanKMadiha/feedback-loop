@@ -2739,6 +2739,10 @@ Ticket ids use the format "#184521".`;
       if (insightsView) insightsView.hidden = dashboardView !== "insights";
       if (analysisView) analysisView.hidden = dashboardView !== "analysis";
 
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+
       if (dashboardView === "insights") renderInsightsView();
     }
 

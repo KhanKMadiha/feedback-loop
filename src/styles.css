@@ -918,7 +918,7 @@ html:has(body.dashboard-page) {
 .main-content--dashboard {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 1rem 1.5rem 0.5rem;
   width: 100%;
   height: calc(100vh - var(--dashboard-nav-height) - var(--dashboard-footer-height));
   max-height: calc(100vh - var(--dashboard-nav-height) - var(--dashboard-footer-height));
@@ -926,11 +926,6 @@ html:has(body.dashboard-page) {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-}
-
-.main-content--dashboard:has(#dashboard-insights:not([hidden])) {
-  overflow: hidden;
-  padding: 1rem 1.5rem 0.5rem;
 }
 
 .dashboard-view-tabs {
@@ -942,17 +937,23 @@ html:has(body.dashboard-page) {
   display: inline-flex;
   align-items: stretch;
   width: fit-content;
+  height: 2.5rem;
   padding: 0.2rem;
   gap: 0;
   border: 1px solid #e5e7eb;
   border-radius: 999px;
   background: #f3f4f6;
+  box-sizing: border-box;
 }
 
 .dashboard-view-tab {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 7.5rem;
-  padding: 0.55rem 1.35rem 0.65rem;
+  height: 100%;
+  padding: 0 1.35rem;
   border: none;
   background: transparent;
   font: inherit;
@@ -961,6 +962,7 @@ html:has(body.dashboard-page) {
   color: #374151;
   cursor: pointer;
   border-radius: 999px;
+  box-sizing: border-box;
   transition: color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -986,8 +988,8 @@ html:has(body.dashboard-page) {
 }
 
 .dashboard-view-tab:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 #dashboard-analysis:not([hidden]) {
