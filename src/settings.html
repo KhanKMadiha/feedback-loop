@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="settings-page">
+<body data-page="settings" class="settings-page">
   <header class="app-header app-header--dashboard">
     <div class="app-header__inner">
       <div class="app-header__brand">
@@ -39,7 +39,7 @@
   <main class="main-content main-content--settings">
     <header class="settings-page__header">
       <h2 class="settings-page__title">Settings</h2>
-      <p class="settings-page__subtitle">Manage workspace preferences, API configuration, and notifications.</p>
+      <p class="settings-page__subtitle">Manage workspace data and preferences.</p>
     </header>
 
     <div class="settings-layout">
@@ -91,6 +91,78 @@
         </div>
       </section>
 
+      <section class="panel-card settings-section settings-section--import" aria-labelledby="import-settings">
+        <header class="settings-section__header">
+          <h3 class="settings-section__title" id="import-settings">Import tickets</h3>
+          <p class="settings-section__subtitle">Upload a CSV export from Zendesk, Intercom, or your support tool.</p>
+        </header>
+        <div class="settings-section__body settings-section__body--import">
+          <div
+            id="import-dropzone"
+            class="import-dropzone"
+            tabindex="0"
+            role="button"
+            aria-label="Upload CSV file"
+          >
+            <input type="file" id="import-file-input" class="import-dropzone__input" accept=".csv,text/csv" hidden>
+            <span class="import-dropzone__icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 16V4"/><path d="M8 8l4-4 4 4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            </span>
+            <p class="import-dropzone__title">Drop CSV here, or <span class="import-dropzone__browse">browse files</span></p>
+            <p class="import-dropzone__hint">Supports .csv up to 500 rows</p>
+          </div>
+
+          <button type="button" class="import-template-btn" id="import-template-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Download CSV template
+          </button>
+
+          <div id="import-status" class="import-status" hidden role="status"></div>
+
+          <div id="import-preview-wrap" class="import-preview" hidden>
+            <h4 class="import-preview__title">Preview (first 3 rows)</h4>
+            <div class="import-preview__table-wrap">
+              <table class="import-preview__table">
+                <thead>
+                  <tr>
+                    <th scope="col">Ticket ID</th>
+                    <th scope="col">Feature request</th>
+                    <th scope="col">Category</th>
+                    <th scope="col">Tier</th>
+                  </tr>
+                </thead>
+                <tbody id="import-preview-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="import-actions">
+            <button type="button" class="btn btn--secondary" id="import-cancel-btn" disabled>Cancel</button>
+            <button type="button" class="btn btn--primary" id="import-submit-btn" disabled>Import tickets</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-card settings-section settings-section--data-source" aria-labelledby="data-source-settings">
+        <header class="settings-section__header">
+          <h3 class="settings-section__title" id="data-source-settings">Data source</h3>
+          <p class="settings-section__subtitle">Choose which data to include in your workspace.</p>
+        </header>
+        <div class="settings-section__body">
+          <fieldset class="import-data-source">
+            <legend class="visually-hidden">Data source</legend>
+            <label class="import-data-source__option">
+              <input type="radio" name="data-source" value="merge" id="data-source-merge" checked>
+              <span class="import-data-source__label">Use demo data + my imports</span>
+            </label>
+            <label class="import-data-source__option">
+              <input type="radio" name="data-source" value="import-only" id="data-source-import-only">
+              <span class="import-data-source__label">Use my data only</span>
+            </label>
+          </fieldset>
+        </div>
+      </section>
+
       <section class="panel-card settings-section settings-section--notifications" aria-labelledby="notification-settings">
         <header class="settings-section__header">
           <h3 class="settings-section__title" id="notification-settings">Notification preferences</h3>
@@ -116,5 +188,6 @@
     <p>Portfolio demo — limited to 5 runs per hour.</p>
   </footer>
 
+  <script src="app.js"></script>
 </body>
 </html>

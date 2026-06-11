@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body data-page="dashboard" class="dashboard-page">
@@ -38,7 +39,53 @@
   </header>
 
   <main class="main-content main-content--dashboard">
-    <div class="dashboard-layout">
+    <nav class="dashboard-view-tabs" aria-label="Dashboard views">
+      <button type="button" class="dashboard-view-tab dashboard-view-tab--active" data-dashboard-view="insights" aria-current="page">Insights</button>
+      <button type="button" class="dashboard-view-tab" data-dashboard-view="analysis">Analysis</button>
+    </nav>
+
+    <div id="dashboard-insights" class="dashboard-insights">
+      <div class="insights-kpis">
+        <article class="insights-kpi panel-card" aria-label="Total requests">
+          <span class="insights-kpi__label">Total requests</span>
+          <span class="insights-kpi__value" id="insights-total">—</span>
+        </article>
+        <article class="insights-kpi panel-card" aria-label="Top category">
+          <span class="insights-kpi__label">Top category</span>
+          <span class="insights-kpi__value insights-kpi__value--category" id="insights-top-category">—</span>
+          <span class="insights-kpi__meta" id="insights-top-category-meta" hidden></span>
+        </article>
+      </div>
+
+      <div class="insights-charts">
+        <section class="panel-card insights-chart-card" aria-labelledby="insights-category-title">
+          <header class="insights-chart-card__header">
+            <h2 class="insights-chart-card__title" id="insights-category-title">Requests by category</h2>
+            <p class="insights-chart-card__subtitle">Stacked by account tier</p>
+          </header>
+          <div class="insights-chart-wrap">
+            <canvas id="insights-category-chart" role="img" aria-label="Requests by category chart"></canvas>
+          </div>
+        </section>
+
+        <section class="panel-card insights-chart-card" aria-labelledby="insights-tier-title">
+          <header class="insights-chart-card__header">
+            <h2 class="insights-chart-card__title" id="insights-tier-title">Requests by tier</h2>
+            <p class="insights-chart-card__subtitle">Overall account tier mix · click to filter in Analysis</p>
+          </header>
+          <div class="insights-tier-chart-layout">
+            <div class="insights-chart-wrap insights-chart-wrap--donut">
+              <canvas id="insights-tier-chart" role="img" aria-label="Requests by tier chart"></canvas>
+            </div>
+            <ul class="insights-tier-legend" id="insights-tier-legend" aria-label="Tier breakdown"></ul>
+          </div>
+        </section>
+      </div>
+
+      <p id="insights-empty" class="insights-empty" hidden>No tickets available yet. Import tickets in Settings or submit a feature request.</p>
+    </div>
+
+    <div id="dashboard-analysis" class="dashboard-layout" hidden>
       <section class="dashboard-col dashboard-col--tickets" aria-labelledby="step-tickets">
         <div class="panel-card">
           <header class="panel-card__header">

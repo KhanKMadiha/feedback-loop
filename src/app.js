@@ -10,8 +10,11 @@
   // --- Configuration ---
 
   const STORAGE_KEY = "feature-signal-tickets";
+  const DATA_SOURCE_KEY = "feature-signal-data-source";
   const MODEL = "claude-sonnet-4-20250514";
   const MOCK_TICKETS_PATH = "../data/mock-tickets.json";
+  const IMPORT_MAX_ROWS = 500;
+  const TIERS = ["Enterprise", "Pro", "Free"];
 
   /** Request types used in mock tickets and intake. */
   const CATEGORIES = [
@@ -67,9 +70,28 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
   }
 
-  /** Only intake submissions can be removed; mock/demo tickets are never deletable. */
+  /** Intake and imported tickets can be removed; mock/demo tickets are never deletable. */
   function isDeletableTicket(ticket) {
-    return ticket?.source === "local";
+    return ticket?.source === "local" || ticket?.source === "import";
+  }
+
+  function getDataSourceMode() {
+    try {
+      const mode = localStorage.getItem(DATA_SOURCE_KEY);
+      return mode === "import-only" ? "import-only" : "merge";
+    } catch {
+      return "merge";
+    }
+  }
+
+  function setDataSourceMode(mode) {
+    localStorage.setItem(DATA_SOURCE_KEY, mode === "import-only" ? "import-only" : "merge");
+  }
+
+  function replaceImportedTickets(tickets) {
+    const kept = getStoredTickets().filter((t) => t.source !== "import");
+    const imported = tickets.map((ticket) => ({ ...ticket, source: "import" }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...kept, ...imported]));
   }
 
   function deleteStoredTicket(ticketId) {
@@ -125,7 +147,8 @@
   }
 
   async function loadAllTickets() {
-    const mock = await loadMockTickets();
+    const useMock = getDataSourceMode() !== "import-only";
+    const mock = useMock ? await loadMockTickets() : [];
     const stored = getStoredTickets().map((t) => ({ ...t, source: t.source || "local" }));
     return [...mock, ...stored].map(normalizeTicket);
   }
@@ -579,7 +602,6 @@ Ticket ids use the format "#184521".`;
 
   /** Filter tickets by category; null/empty category returns all tickets. */
   const TICKET_PAGE_SIZE = 6;
-  const TIERS = ["Enterprise", "Pro", "Free"];
   const PRIORITY_FILTERS = [
     { value: "", label: "All priorities" },
     { value: "Critical", label: "Critical" },
@@ -1631,6 +1653,602 @@ Ticket ids use the format "#184521".`;
     doc.save(themeBriefFilename());
   }
 
+  const CSV_COLUMN_ALIASES = {
+    id: ["id", "ticket_id", "ticket id", "ticket"],
+    feature_request_name: ["feature_request_name", "feature request", "feature request name", "title", "summary"],
+    category: ["category", "product_area", "product area", "request type", "request_type"],
+    account_name: ["account_name", "account name", "account", "company"],
+    account_tier: ["account_tier", "account tier", "tier", "plan"],
+    submitted_by: ["submitted_by", "submitted by", "requester", "email", "submitter"],
+    date: ["date", "submitted", "created", "created_at"],
+    priority: ["priority", "severity"],
+    feature_request_description: [
+      "feature_request_description",
+      "feature request description",
+      "description",
+      "details",
+    ],
+    priority_justification: [
+      "priority_justification",
+      "priority justification",
+      "business_impact",
+      "business impact",
+      "justification",
+    ],
+  };
+
+  const CSV_TEMPLATE_ROW = {
+    id: "#184521",
+    feature_request_name: "IdP group sync for permissions",
+    category: "Authentication",
+    account_name: "Shopify",
+    account_tier: "Enterprise",
+    submitted_by: "dev.tools@shopify.com",
+    date: "2026-05-28",
+    priority: "Critical",
+    feature_request_description:
+      "When engineers move teams in our identity provider we want workspace permissions to update automatically.",
+    priority_justification:
+      "We cannot scale team restructures without creating compliance gaps.",
+  };
+
+  function normalizeCsvHeader(header) {
+    return String(header || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function mapCsvHeaders(headerRow) {
+    const indexByField = {};
+    const normalizedHeaders = headerRow.map(normalizeCsvHeader);
+
+    for (const [field, aliases] of Object.entries(CSV_COLUMN_ALIASES)) {
+      const aliasSet = aliases.map(normalizeCsvHeader);
+      const index = normalizedHeaders.findIndex((header) => aliasSet.includes(header));
+      if (index >= 0) indexByField[field] = index;
+    }
+
+    return indexByField;
+  }
+
+  function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let field = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i += 1) {
+      const char = text[i];
+      const next = text[i + 1];
+
+      if (inQuotes) {
+        if (char === '"' && next === '"') {
+          field += '"';
+          i += 1;
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          field += char;
+        }
+      } else if (char === '"') {
+        inQuotes = true;
+      } else if (char === ",") {
+        row.push(field.trim());
+        field = "";
+      } else if (char === "\n" || (char === "\r" && next === "\n")) {
+        row.push(field.trim());
+        field = "";
+        if (row.some((cell) => cell !== "")) rows.push(row);
+        row = [];
+        if (char === "\r") i += 1;
+      } else if (char !== "\r") {
+        field += char;
+      }
+    }
+
+    if (field.length || row.length) {
+      row.push(field.trim());
+      if (row.some((cell) => cell !== "")) rows.push(row);
+    }
+
+    return rows;
+  }
+
+  function normalizeTier(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+    const match = TIERS.find((tier) => tier.toLowerCase() === raw.toLowerCase());
+    return match || null;
+  }
+
+  function normalizePriority(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "Medium";
+    const match = raw.match(/^(Critical|High|Medium|Low)/i);
+    return match ? match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase() : "Medium";
+  }
+
+  function normalizeCategory(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return { category: "", warning: null };
+    const mapped = LEGACY_CATEGORY_MAP[raw] || raw;
+    const warning =
+      LEGACY_CATEGORY_MAP[raw] && LEGACY_CATEGORY_MAP[raw] !== raw
+        ? `Category "${raw}" mapped to ${LEGACY_CATEGORY_MAP[raw]}`
+        : null;
+    const known = CATEGORIES.includes(mapped);
+    return {
+      category: known ? mapped : mapped,
+      warning: warning || (!known ? `Unknown category "${raw}" — kept as-is` : null),
+    };
+  }
+
+  function normalizeImportDate(value) {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return { date: new Date().toISOString().slice(0, 10), warning: "Missing date — used today" };
+    }
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) return { date: `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`, warning: null };
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return { date: parsed.toISOString().slice(0, 10), warning: null };
+    }
+    return { date: new Date().toISOString().slice(0, 10), warning: `Invalid date "${raw}" — used today` };
+  }
+
+  function formatTicketId(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    return raw.startsWith("#") ? raw : `#${raw.replace(/^#/, "")}`;
+  }
+
+  function getCell(row, indexByField, field) {
+    const index = indexByField[field];
+    if (index == null) return "";
+    return row[index] == null ? "" : String(row[index]).trim();
+  }
+
+  function parseCsvTickets(text) {
+    const rows = parseCsv(text);
+    if (!rows.length) {
+      return { tickets: [], errors: ["CSV file is empty."], warnings: [] };
+    }
+
+    const indexByField = mapCsvHeaders(rows[0]);
+    const missingRequired = ["feature_request_name", "category", "account_tier"].filter(
+      (field) => indexByField[field] == null
+    );
+
+    if (missingRequired.length) {
+      return {
+        tickets: [],
+        errors: [
+          `Missing required column(s): ${missingRequired
+            .map((field) => CSV_COLUMN_ALIASES[field][0])
+            .join(", ")}.`,
+        ],
+        warnings: [],
+      };
+    }
+
+    const tickets = [];
+    const errors = [];
+    const warnings = [];
+    const seenIds = new Set();
+    const dataRows = rows.slice(1);
+
+    if (dataRows.length > IMPORT_MAX_ROWS) {
+      return {
+        tickets: [],
+        errors: [`CSV exceeds the ${IMPORT_MAX_ROWS}-row limit.`],
+        warnings: [],
+      };
+    }
+
+    let nextId = generateTicketId();
+
+    dataRows.forEach((row, rowIndex) => {
+      if (!row.some((cell) => String(cell).trim() !== "")) return;
+
+      const lineNumber = rowIndex + 2;
+      const featureRequestName = getCell(row, indexByField, "feature_request_name");
+      const categoryRaw = getCell(row, indexByField, "category");
+      const tierRaw = getCell(row, indexByField, "account_tier");
+
+      if (!featureRequestName) {
+        errors.push(`Row ${lineNumber}: feature request name is required.`);
+        return;
+      }
+      if (!categoryRaw) {
+        errors.push(`Row ${lineNumber}: category is required.`);
+        return;
+      }
+
+      const tier = normalizeTier(tierRaw);
+      if (!tier) {
+        errors.push(`Row ${lineNumber}: account tier must be Enterprise, Pro, or Free.`);
+        return;
+      }
+
+      const { category, warning: categoryWarning } = normalizeCategory(categoryRaw);
+      const { date, warning: dateWarning } = normalizeImportDate(getCell(row, indexByField, "date"));
+
+      let id = formatTicketId(getCell(row, indexByField, "id"));
+      if (!id) {
+        id = nextId;
+        nextId = `#${parseTicketIdNumber(nextId) + 1}`;
+        warnings.push(`Row ${lineNumber}: generated ticket ID ${id}.`);
+      } else if (seenIds.has(id)) {
+        id = nextId;
+        nextId = `#${parseTicketIdNumber(nextId) + 1}`;
+        warnings.push(`Row ${lineNumber}: duplicate ticket ID — assigned ${id}.`);
+      }
+      seenIds.add(id);
+
+      if (categoryWarning) warnings.push(`Row ${lineNumber}: ${categoryWarning}.`);
+      if (dateWarning) warnings.push(`Row ${lineNumber}: ${dateWarning}.`);
+
+      const priority = normalizePriority(getCell(row, indexByField, "priority"));
+      const description = getCell(row, indexByField, "feature_request_description");
+      const justification = getCell(row, indexByField, "priority_justification");
+
+      tickets.push(
+        normalizeTicket({
+          id,
+          category,
+          account_name: getCell(row, indexByField, "account_name") || "Unknown account",
+          account_tier: tier,
+          submitted_by: getCell(row, indexByField, "submitted_by") || "import@workspace.local",
+          date,
+          priority,
+          feature_request_name: featureRequestName,
+          feature_request_description: description || featureRequestName,
+          feature_request_priority: priority,
+          priority_justification: justification || "",
+          sentiment: "Neutral",
+          sentiment_score: 5,
+          source: "import",
+        })
+      );
+    });
+
+    if (!tickets.length && !errors.length) {
+      errors.push("No ticket rows found in CSV.");
+    }
+
+    return { tickets, errors, warnings };
+  }
+
+  function csvEscape(value) {
+    const text = String(value == null ? "" : value);
+    if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+    return text;
+  }
+
+  function downloadCsvTemplate() {
+    const headers = Object.keys(CSV_TEMPLATE_ROW);
+    const lines = [
+      headers.join(","),
+      headers.map((key) => csvEscape(CSV_TEMPLATE_ROW[key])).join(","),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "feedback-loop-ticket-template.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function initSettings() {
+    const dropzone = document.getElementById("import-dropzone");
+    const fileInput = document.getElementById("import-file-input");
+    const templateBtn = document.getElementById("import-template-btn");
+    const statusEl = document.getElementById("import-status");
+    const previewWrap = document.getElementById("import-preview-wrap");
+    const previewBody = document.getElementById("import-preview-body");
+    const cancelBtn = document.getElementById("import-cancel-btn");
+    const submitBtn = document.getElementById("import-submit-btn");
+    const dataSourceMerge = document.getElementById("data-source-merge");
+    const dataSourceImportOnly = document.getElementById("data-source-import-only");
+
+    if (!dropzone || !fileInput) return;
+
+    let pendingTickets = [];
+
+    function setDataSourceRadios() {
+      const mode = getDataSourceMode();
+      if (dataSourceMerge) dataSourceMerge.checked = mode === "merge";
+      if (dataSourceImportOnly) dataSourceImportOnly.checked = mode === "import-only";
+    }
+
+    function resetImportState() {
+      pendingTickets = [];
+      fileInput.value = "";
+      if (statusEl) {
+        statusEl.hidden = true;
+        statusEl.textContent = "";
+        statusEl.className = "import-status";
+      }
+      if (previewWrap) previewWrap.hidden = true;
+      if (previewBody) previewBody.innerHTML = "";
+      if (cancelBtn) cancelBtn.disabled = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Import tickets";
+      }
+      dropzone.classList.remove("import-dropzone--active");
+    }
+
+    function renderImportPreview(tickets) {
+      if (!previewWrap || !previewBody) return;
+      const previewRows = tickets.slice(0, 3);
+      previewBody.innerHTML = previewRows
+        .map(
+          (ticket) => `
+          <tr>
+            <td>${escapeHtml(ticket.id)}</td>
+            <td>${escapeHtml(getTicketTitle(ticket))}</td>
+            <td><span class="badge ${categoryBadgeClass(getTicketCategory(ticket))}">${escapeHtml(getTicketCategory(ticket))}</span></td>
+            <td><span class="badge ${tierBadgeClass(ticket.account_tier)}">${escapeHtml(ticket.account_tier || "—")}</span></td>
+          </tr>`
+        )
+        .join("");
+      previewWrap.hidden = previewRows.length === 0;
+    }
+
+    function renderImportStatus(result) {
+      if (!statusEl) return;
+
+      const { tickets, errors, warnings } = result;
+      const readyCount = tickets.length;
+      const errorCount = errors.length;
+      const warningCount = warnings.length;
+
+      statusEl.hidden = false;
+
+      if (errorCount && !readyCount) {
+        statusEl.className = "import-status import-status--error";
+        statusEl.innerHTML = `<span class="import-status__icon" aria-hidden="true">!</span><span>${escapeHtml(errors[0])}</span>`;
+        return;
+      }
+
+      if (errorCount) {
+        statusEl.className = "import-status import-status--warning";
+      } else if (warningCount) {
+        statusEl.className = "import-status import-status--warning";
+      } else {
+        statusEl.className = "import-status import-status--success";
+      }
+
+      const icon = errorCount && readyCount ? "!" : warningCount ? "!" : "✓";
+      const summary = `${readyCount} ticket${readyCount === 1 ? "" : "s"} ready to import · ${errorCount} error${errorCount === 1 ? "" : "s"} · ${warningCount} warning${warningCount === 1 ? "" : "s"}`;
+      statusEl.innerHTML = `<span class="import-status__icon" aria-hidden="true">${icon}</span><span>${escapeHtml(summary)}</span>`;
+    }
+
+    function handleCsvText(text) {
+      const result = parseCsvTickets(text);
+      pendingTickets = result.tickets;
+      renderImportStatus(result);
+      renderImportPreview(result.tickets);
+
+      const canImport = result.tickets.length > 0;
+      if (cancelBtn) cancelBtn.disabled = !canImport;
+      if (submitBtn) {
+        submitBtn.disabled = !canImport;
+        submitBtn.textContent = canImport
+          ? `Import ${result.tickets.length} ticket${result.tickets.length === 1 ? "" : "s"}`
+          : "Import tickets";
+      }
+    }
+
+    function handleFile(file) {
+      if (!file) return;
+      if (!/\.csv$/i.test(file.name) && file.type !== "text/csv") {
+        pendingTickets = [];
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.className = "import-status import-status--error";
+          statusEl.innerHTML =
+            '<span class="import-status__icon" aria-hidden="true">!</span><span>Please upload a .csv file.</span>';
+        }
+        if (previewWrap) previewWrap.hidden = true;
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = true;
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => handleCsvText(String(reader.result || ""));
+      reader.onerror = () => {
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.className = "import-status import-status--error";
+          statusEl.innerHTML =
+            '<span class="import-status__icon" aria-hidden="true">!</span><span>Could not read the CSV file.</span>';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+
+    dropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropzone.classList.add("import-dropzone--active");
+    });
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("import-dropzone--active");
+    });
+    dropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("import-dropzone--active");
+      const file = e.dataTransfer?.files?.[0];
+      handleFile(file);
+    });
+
+    fileInput.addEventListener("change", () => {
+      handleFile(fileInput.files?.[0]);
+    });
+
+    if (templateBtn) {
+      templateBtn.addEventListener("click", downloadCsvTemplate);
+    }
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", resetImportState);
+    }
+
+    if (submitBtn) {
+      submitBtn.addEventListener("click", () => {
+        if (!pendingTickets.length) return;
+        replaceImportedTickets(pendingTickets);
+        const count = pendingTickets.length;
+        resetImportState();
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.className = "import-status import-status--success";
+          statusEl.innerHTML = `<span class="import-status__icon" aria-hidden="true">✓</span><span>${count} ticket${count === 1 ? "" : "s"} imported — <a href="dashboard.html">view on dashboard</a></span>`;
+        }
+        if (cancelBtn) cancelBtn.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
+      });
+    }
+
+    document.querySelectorAll('input[name="data-source"]').forEach((input) => {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        setDataSourceMode(input.value);
+      });
+    });
+
+    setDataSourceRadios();
+    resetImportState();
+  }
+
+  function getInsightsTierColors() {
+    const styles = getComputedStyle(document.documentElement);
+    return {
+      Enterprise: styles.getPropertyValue("--chart-tier-enterprise").trim() || "#1e3a5f",
+      Pro: styles.getPropertyValue("--chart-tier-pro").trim() || "#2a6fc0",
+      Free: styles.getPropertyValue("--chart-tier-free").trim() || "#e5e7eb",
+    };
+  }
+
+  const INSIGHTS_TIER_LABEL_COLORS = {
+    Enterprise: "#ffffff",
+    Pro: "#ffffff",
+    Free: "#374151",
+  };
+
+  const tierSegmentLabelsPlugin = {
+    id: "tierSegmentLabels",
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      const dataset = chart.data.datasets[0];
+      const labels = chart.data.labels || [];
+      const total = dataset.data.reduce((sum, value) => sum + value, 0);
+      if (!total) return;
+
+      meta.data.forEach((arc, index) => {
+        const value = dataset.data[index];
+        if (!value) return;
+
+        const percent = Math.round((value / total) * 100);
+        if (percent < 4) return;
+
+        const { x, y } = arc.tooltipPosition();
+        const tier = labels[index];
+        ctx.fillStyle = INSIGHTS_TIER_LABEL_COLORS[tier] || "#ffffff";
+        ctx.font = "600 13px Inter, system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`${percent}%`, x, y);
+      });
+    },
+  };
+
+  const stackedBarSegmentLabelsPlugin = {
+    id: "stackedBarSegmentLabels",
+    afterDatasetsDraw(chart) {
+      const { ctx, data } = chart;
+      if (chart.config.type !== "bar") return;
+
+      data.datasets.forEach((dataset, datasetIndex) => {
+        const tier = dataset.label || TIERS[datasetIndex];
+        const meta = chart.getDatasetMeta(datasetIndex);
+
+        meta.data.forEach((bar) => {
+          const value = dataset.data[bar.index];
+          if (!value) return;
+
+          const { x, y, base } = bar.getProps(["x", "y", "base"], true);
+          const segmentWidth = Math.abs(x - base);
+          if (segmentWidth < 16) return;
+
+          const centerX = (x + base) / 2;
+          ctx.fillStyle = INSIGHTS_TIER_LABEL_COLORS[tier] || "#ffffff";
+          ctx.font = "600 11px Inter, system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(value), centerX, y);
+        });
+      });
+    },
+  };
+
+  function computeInsightsData(tickets) {
+    const categoryCounts = {};
+    const categoryTierCounts = {};
+    const tierCounts = { Enterprise: 0, Pro: 0, Free: 0 };
+
+    for (const ticket of tickets) {
+      const category = getTicketCategory(ticket);
+      const tier = TIERS.includes(ticket.account_tier) ? ticket.account_tier : "Free";
+
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      if (!categoryTierCounts[category]) {
+        categoryTierCounts[category] = { Enterprise: 0, Pro: 0, Free: 0 };
+      }
+      categoryTierCounts[category][tier] += 1;
+      tierCounts[tier] += 1;
+    }
+
+    let topCategory = "—";
+    let topCategoryCount = 0;
+    for (const [category, count] of Object.entries(categoryCounts)) {
+      if (count > topCategoryCount) {
+        topCategory = category;
+        topCategoryCount = count;
+      }
+    }
+
+    const categoryLabels = Object.keys(categoryCounts)
+      .filter((category) => categoryCounts[category] > 0)
+      .sort((a, b) => categoryCounts[b] - categoryCounts[a]);
+
+    return {
+      total: tickets.length,
+      topCategory,
+      topCategoryCount,
+      categoryCounts,
+      categoryTierCounts,
+      tierCounts,
+      categoryLabels,
+    };
+  }
+
   async function initDashboard() {
     const analyzeBtnEmpty = document.getElementById("analyze-btn-empty");
     const loading = document.getElementById("loading");
@@ -1644,8 +2262,23 @@ Ticket ids use the format "#184521".`;
     const ticketDetailPrev = document.getElementById("ticket-detail-prev");
     const ticketDetailNext = document.getElementById("ticket-detail-next");
     const ticketDetailDelete = document.getElementById("ticket-detail-delete");
+    const insightsView = document.getElementById("dashboard-insights");
+    const analysisView = document.getElementById("dashboard-analysis");
+    const viewTabs = document.querySelectorAll("[data-dashboard-view]");
+    const insightsTotalEl = document.getElementById("insights-total");
+    const insightsTopCategoryEl = document.getElementById("insights-top-category");
+    const insightsTopCategoryMetaEl = document.getElementById("insights-top-category-meta");
+    const insightsEmptyEl = document.getElementById("insights-empty");
+    const insightsChartsEl = document.querySelector(".insights-charts");
+    const categoryChartCanvas = document.getElementById("insights-category-chart");
+    const tierChartCanvas = document.getElementById("insights-tier-chart");
+    const tierLegendEl = document.getElementById("insights-tier-legend");
 
     let allTickets = [];
+    let dashboardView = "insights";
+    let categoryChart = null;
+    let tierChart = null;
+    let insightsCategoryLabels = [];
     let ticketFilters = { category: null, tier: null, priority: null, days: 90 };
     let ticketPage = 1;
     let ticketSort = { column: "date", order: "desc" };
@@ -1868,12 +2501,250 @@ Ticket ids use the format "#184521".`;
       openTicketDetail(ticketId, ticketIds, { scrollToGrid: false, fromLinkedPanel: fromLinked });
     }
 
+    function destroyInsightsCharts() {
+      if (categoryChart) {
+        categoryChart.destroy();
+        categoryChart = null;
+      }
+      if (tierChart) {
+        tierChart.destroy();
+        tierChart = null;
+      }
+      if (tierLegendEl) tierLegendEl.innerHTML = "";
+    }
+
+    function applyInsightsFilter({ category = null, tier = null } = {}) {
+      ticketFilters = {
+        category: category || null,
+        tier: tier || null,
+        priority: null,
+        days: 0,
+      };
+      closeTicketDetail();
+      hideAlert(clusterAlert);
+      renderThemeResults([]);
+      ticketPage = 1;
+      switchDashboardView("analysis");
+      refreshTicketViews(null);
+      updateAnalyzeButton(allTickets, ticketFilters);
+    }
+
+    function renderInsightsView() {
+      if (!insightsView) return;
+
+      const data = computeInsightsData(allTickets);
+      const hasTickets = data.total > 0;
+
+      const insightsKpisEl = document.querySelector(".insights-kpis");
+      if (insightsKpisEl) insightsKpisEl.hidden = !hasTickets;
+      if (insightsEmptyEl) insightsEmptyEl.hidden = hasTickets;
+      if (insightsChartsEl) insightsChartsEl.hidden = !hasTickets;
+
+      if (insightsTotalEl) insightsTotalEl.textContent = String(data.total);
+
+      if (insightsTopCategoryEl) {
+        if (hasTickets && data.topCategory !== "—") {
+          insightsTopCategoryEl.innerHTML = `<span class="badge ${categoryBadgeClass(data.topCategory)}">${escapeHtml(data.topCategory)}</span>`;
+        } else {
+          insightsTopCategoryEl.textContent = "—";
+        }
+      }
+
+      if (insightsTopCategoryMetaEl) {
+        if (hasTickets && data.topCategoryCount > 0) {
+          insightsTopCategoryMetaEl.textContent = `${data.topCategoryCount} request${data.topCategoryCount === 1 ? "" : "s"}`;
+          insightsTopCategoryMetaEl.hidden = false;
+        } else {
+          insightsTopCategoryMetaEl.hidden = true;
+          insightsTopCategoryMetaEl.textContent = "";
+        }
+      }
+
+      destroyInsightsCharts();
+
+      if (!hasTickets || !window.Chart || !categoryChartCanvas || !tierChartCanvas) return;
+
+      insightsCategoryLabels = data.categoryLabels;
+      const tierColors = getInsightsTierColors();
+
+      const tierDatasets = TIERS.map((tier) => ({
+        label: tier,
+        data: data.categoryLabels.map((category) => data.categoryTierCounts[category]?.[tier] || 0),
+        backgroundColor: tierColors[tier],
+        hoverBackgroundColor: tierColors[tier],
+        borderWidth: 0,
+        borderRadius: 3,
+        stack: "tier",
+      }));
+
+      categoryChart = new Chart(categoryChartCanvas, {
+        type: "bar",
+        data: {
+          labels: data.categoryLabels,
+          datasets: tierDatasets,
+        },
+        plugins: [stackedBarSegmentLabelsPlugin],
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: {
+            padding: { bottom: 4 },
+          },
+          scales: {
+            x: {
+              stacked: true,
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: "Number of requests",
+                color: "#787f8c",
+                font: { family: "Inter, system-ui, sans-serif", size: 11, weight: "500" },
+                padding: { top: 8 },
+              },
+              ticks: {
+                precision: 0,
+                stepSize: 1,
+                color: "#787f8c",
+                font: { family: "Inter, system-ui, sans-serif", size: 11 },
+              },
+              grid: { color: "rgba(64, 70, 86, 0.08)" },
+            },
+            y: {
+              stacked: true,
+              ticks: {
+                color: "#404656",
+                font: { family: "Inter, system-ui, sans-serif", size: 12, weight: "600" },
+              },
+              grid: { display: false },
+            },
+          },
+          plugins: {
+            legend: {
+              position: "top",
+              align: "end",
+              labels: {
+                boxWidth: 10,
+                boxHeight: 10,
+                useBorderRadius: true,
+                borderRadius: 2,
+                color: "#404656",
+                font: { family: "Inter, system-ui, sans-serif", size: 12, weight: "500" },
+                padding: 12,
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  const value = context.parsed.x || 0;
+                  return `${context.dataset.label}: ${value}`;
+                },
+              },
+            },
+          },
+          onClick(_event, elements) {
+            if (!elements.length) return;
+            const { datasetIndex, index } = elements[0];
+            const tier = TIERS[datasetIndex];
+            const category = insightsCategoryLabels[index];
+            if (!category || !tier) return;
+            applyInsightsFilter({ category, tier });
+          },
+        },
+      });
+
+      const tierValues = TIERS.map((tier) => data.tierCounts[tier] || 0);
+      const tierTotal = tierValues.reduce((sum, value) => sum + value, 0);
+
+      if (tierLegendEl) {
+        tierLegendEl.innerHTML = TIERS.map((tier, index) => {
+          const value = tierValues[index];
+          const percent = tierTotal ? Math.round((value / tierTotal) * 100) : 0;
+          return `
+            <li>
+              <button type="button" class="insights-tier-legend__item" data-tier="${escapeHtml(tier)}">
+                <span class="insights-tier-legend__swatch" style="background:${tierColors[tier]}" aria-hidden="true"></span>
+                <span class="insights-tier-legend__label">${escapeHtml(tier)}</span>
+                <span class="insights-tier-legend__value">${percent}%</span>
+              </button>
+            </li>`;
+        }).join("");
+
+        tierLegendEl.querySelectorAll("[data-tier]").forEach((button) => {
+          button.addEventListener("click", () => {
+            applyInsightsFilter({ tier: button.dataset.tier });
+          });
+        });
+      }
+
+      tierChart = new Chart(tierChartCanvas, {
+        type: "doughnut",
+        data: {
+          labels: TIERS,
+          datasets: [
+            {
+              data: tierValues,
+              backgroundColor: TIERS.map((tier) => tierColors[tier]),
+              hoverBackgroundColor: TIERS.map((tier) => tierColors[tier]),
+              borderWidth: 0,
+            },
+          ],
+        },
+        plugins: [tierSegmentLabelsPlugin],
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "58%",
+          layout: {
+            padding: 4,
+          },
+          plugins: {
+            legend: {
+              display: false,
+            },
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  const value = context.parsed || 0;
+                  const percent = tierTotal ? Math.round((value / tierTotal) * 100) : 0;
+                  return `${context.label}: ${value} (${percent}%)`;
+                },
+              },
+            },
+          },
+          onClick(_event, elements) {
+            if (!elements.length) return;
+            const tier = TIERS[elements[0].index];
+            if (!tier) return;
+            applyInsightsFilter({ tier });
+          },
+        },
+      });
+    }
+
+    function switchDashboardView(view) {
+      dashboardView = view === "analysis" ? "analysis" : "insights";
+
+      viewTabs.forEach((tab) => {
+        const isActive = tab.dataset.dashboardView === dashboardView;
+        tab.classList.toggle("dashboard-view-tab--active", isActive);
+        if (isActive) tab.setAttribute("aria-current", "page");
+        else tab.removeAttribute("aria-current");
+      });
+
+      if (insightsView) insightsView.hidden = dashboardView !== "insights";
+      if (analysisView) analysisView.hidden = dashboardView !== "analysis";
+
+      if (dashboardView === "insights") renderInsightsView();
+    }
+
     async function reloadDashboardTickets() {
       allTickets = await loadAllTickets();
       renderThemeResults([]);
       ticketPage = 1;
       refreshTicketViews(null);
       updateAnalyzeButton(allTickets, ticketFilters);
+      if (dashboardView === "insights") renderInsightsView();
     }
 
     function applyTicketFiltersChange(change) {
@@ -1894,13 +2765,21 @@ Ticket ids use the format "#184521".`;
       refreshTicketViews(null);
     }
 
+    viewTabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        switchDashboardView(tab.dataset.dashboardView);
+      });
+    });
+
     try {
       allTickets = await loadAllTickets();
       applyTicketFiltersChange({ reset: true });
+      switchDashboardView("insights");
     } catch (err) {
       if (ticketGrid) {
         ticketGrid.innerHTML = `<div class="alert alert--error">Failed to load tickets: ${escapeHtml(err.message)}. Serve the project from the repo root (e.g. <code>npx serve .</code>).</div>`;
       }
+      switchDashboardView("insights");
     }
 
     function openTicketFromThemePanel(ticketId) {
@@ -2118,5 +2997,7 @@ Ticket ids use the format "#184521".`;
     initIntake();
   } else if (page === "dashboard") {
     initDashboard();
+  } else if (page === "settings") {
+    initSettings();
   }
 })();

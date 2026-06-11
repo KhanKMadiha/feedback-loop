@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260611c">
 </head>
 <body data-page="intake" class="intake-page">
   <header class="app-header app-header--dashboard">
@@ -128,15 +128,17 @@
             <label for="priority_justification">Priority justification</label>
             <input type="text" id="priority_justification" name="priority_justification" required placeholder="Why this priority level applies">
           </div>
+        </div>
 
-          <div class="intake-form-field intake-form-grid__full">
+        <div class="intake-form-footer">
+          <div class="intake-form-field intake-form-field--description">
             <label for="feature_request_description">Feature request description</label>
             <textarea id="feature_request_description" name="feature_request_description" required placeholder="Full context from the customer conversation…"></textarea>
           </div>
-        </div>
 
-        <div class="form-actions">
-          <button type="submit" class="btn btn--primary btn--analyse btn--submit-ticket" id="submit-btn">Submit feature request</button>
+          <div class="form-actions">
+            <button type="submit" class="btn btn--primary btn--analyse btn--submit-ticket" id="submit-btn">Submit feature request</button>
+          </div>
         </div>
       </form>
     </div>
