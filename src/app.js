@@ -2565,6 +2565,10 @@ Ticket ids use the format "#184521".`;
 
       insightsCategoryLabels = data.categoryLabels;
       const tierColors = getInsightsTierColors();
+      const categoryChartWrap = categoryChartCanvas.closest(".insights-chart-wrap");
+      if (categoryChartWrap) {
+        categoryChartWrap.style.minHeight = `${Math.max(140, data.categoryLabels.length * 36)}px`;
+      }
 
       const tierDatasets = TIERS.map((tier) => ({
         label: tier,
@@ -2588,7 +2592,7 @@ Ticket ids use the format "#184521".`;
           responsive: true,
           maintainAspectRatio: false,
           layout: {
-            padding: { bottom: 4 },
+            padding: { left: 4, bottom: 4 },
           },
           scales: {
             x: {
@@ -2612,6 +2616,7 @@ Ticket ids use the format "#184521".`;
             y: {
               stacked: true,
               ticks: {
+                autoSkip: false,
                 color: "#404656",
                 font: { family: "Inter, system-ui, sans-serif", size: 12, weight: "600" },
               },
@@ -2721,8 +2726,10 @@ Ticket ids use the format "#184521".`;
       });
 
       requestAnimationFrame(() => {
-        categoryChart?.resize();
-        tierChart?.resize();
+        requestAnimationFrame(() => {
+          categoryChart?.resize();
+          tierChart?.resize();
+        });
       });
     }
 
