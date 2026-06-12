@@ -1036,9 +1036,8 @@ html:has(body.dashboard-page) {
   flex: 1 1 auto;
   min-height: 0;
   gap: 0.75rem;
-  padding-bottom: 0.5rem;
-  overflow-x: hidden;
-  overflow-y: auto;
+  padding-bottom: 0;
+  overflow: hidden;
 }
 
 .dashboard-insights[hidden],
@@ -1089,16 +1088,16 @@ html:has(body.dashboard-page) {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.95fr);
   gap: 1rem;
-  align-items: start;
-  flex: 0 0 auto;
-  width: 100%;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .insights-charts .insights-chart-card {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  height: auto;
+  height: 100%;
 }
 
 .insights-chart-card__header {
@@ -1121,10 +1120,9 @@ html:has(body.dashboard-page) {
 
 .insights-chart-wrap {
   position: relative;
-  flex: 0 0 auto;
-  width: 100%;
-  min-height: 160px;
-  height: 160px;
+  flex: 1 1 auto;
+  min-height: 140px;
+  height: auto;
   padding: 0 0.85rem 0.65rem;
   box-sizing: border-box;
 }
@@ -1133,16 +1131,16 @@ html:has(body.dashboard-page) {
   display: flex;
   align-items: center;
   gap: 1.25rem;
-  padding: 0 1rem 1rem;
-  flex: 0 0 auto;
-  min-height: 220px;
+  padding: 0 1rem 0.65rem;
+  flex: 1 1 auto;
+  min-height: 140px;
 }
 
 .insights-chart-wrap--donut {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 220px;
-  height: 220px;
+  min-height: 140px;
+  height: 100%;
   padding: 0;
   box-sizing: border-box;
 }
@@ -2511,6 +2509,16 @@ html:has(body.dashboard-page) {
 
   .insights-charts {
     grid-template-columns: 1fr;
+    flex: 0 0 auto;
+  }
+
+  .dashboard-insights {
+    overflow-y: auto;
+  }
+
+  .insights-charts .insights-chart-card {
+    height: auto;
+    min-height: 18rem;
   }
 
   .app-header--dashboard .app-header__brand {

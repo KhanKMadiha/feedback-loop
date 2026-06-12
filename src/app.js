@@ -2655,17 +2655,15 @@ Ticket ids use the format "#184521".`;
 
       insightsCategoryLabels = data.categoryLabels;
       const tierColors = getInsightsTierColors();
-      const categoryChartHeight = Math.max(220, 100 + data.categoryLabels.length * 36);
       const categoryChartWrap = categoryChartCanvas.closest(".insights-chart-wrap");
       if (categoryChartWrap) {
-        categoryChartWrap.style.minHeight = `${categoryChartHeight}px`;
-        categoryChartWrap.style.height = `${categoryChartHeight}px`;
+        categoryChartWrap.style.minHeight = `${Math.max(140, data.categoryLabels.length * 36)}px`;
+        categoryChartWrap.style.height = "";
       }
 
       const donutChartWrap = tierChartCanvas.closest(".insights-chart-wrap--donut");
       if (donutChartWrap) {
-        donutChartWrap.style.minHeight = "220px";
-        donutChartWrap.style.height = "220px";
+        donutChartWrap.style.height = "";
       }
 
       const tierDatasets = TIERS.map((tier) => ({
@@ -2831,10 +2829,36 @@ Ticket ids use the format "#184521".`;
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          categoryChart?.resize();
-          tierChart?.resize();
+          layoutInsightsChartAreas();
         });
       });
+    }
+
+    function layoutInsightsChartAreas() {
+      if (!categoryChartCanvas || !tierChartCanvas) return;
+
+      const categoryCard = categoryChartCanvas.closest(".insights-chart-card");
+      const categoryHeader = categoryCard?.querySelector(".insights-chart-card__header");
+      const categoryWrap = categoryChartCanvas.closest(".insights-chart-wrap");
+      const tierLayout = tierChartCanvas.closest(".insights-tier-chart-layout");
+      const donutWrap = tierChartCanvas.closest(".insights-chart-wrap--donut");
+
+      if (categoryCard && categoryHeader && categoryWrap) {
+        const height = categoryCard.clientHeight - categoryHeader.offsetHeight;
+        if (height > 0) {
+          categoryWrap.style.height = `${height}px`;
+        }
+      }
+
+      if (tierLayout && donutWrap) {
+        const height = tierLayout.clientHeight;
+        if (height > 0) {
+          donutWrap.style.height = `${height}px`;
+        }
+      }
+
+      categoryChart?.resize();
+      tierChart?.resize();
     }
 
     function switchDashboardView(view) {
@@ -2875,7 +2899,11 @@ Ticket ids use the format "#184521".`;
       if (dashboardView !== "insights") return;
       window.clearTimeout(insightsResizeTimer);
       insightsResizeTimer = window.setTimeout(() => {
-        renderInsightsView();
+        if (categoryChart || tierChart) {
+          layoutInsightsChartAreas();
+        } else {
+          renderInsightsView();
+        }
       }, 150);
     });
 
