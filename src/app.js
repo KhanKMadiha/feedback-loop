@@ -1943,26 +1943,28 @@ Ticket ids use the format "#184521".`;
     URL.revokeObjectURL(url);
   }
 
-  function initSettings() {
-    const dropzone = document.getElementById("import-dropzone");
-    const fileInput = document.getElementById("import-file-input");
-    const templateBtn = document.getElementById("import-template-btn");
-    const statusEl = document.getElementById("import-status");
-    const previewWrap = document.getElementById("import-preview-wrap");
-    const previewBody = document.getElementById("import-preview-body");
-    const cancelBtn = document.getElementById("import-cancel-btn");
-    const submitBtn = document.getElementById("import-submit-btn");
-    const dataSourceMerge = document.getElementById("data-source-merge");
-    const dataSourceImportOnly = document.getElementById("data-source-import-only");
-
-    if (!dropzone || !fileInput) return;
+  function bindImportUi({
+    dropzone,
+    fileInput,
+    templateBtn,
+    statusEl,
+    previewWrap,
+    previewBody,
+    cancelBtn,
+    submitBtn,
+    footerWrap,
+    onImportSuccess,
+  }) {
+    if (!dropzone || !fileInput) return null;
 
     let pendingTickets = [];
 
-    function setDataSourceRadios() {
-      const mode = getDataSourceMode();
-      if (dataSourceMerge) dataSourceMerge.checked = mode === "merge";
-      if (dataSourceImportOnly) dataSourceImportOnly.checked = mode === "import-only";
+    function showFooter() {
+      if (footerWrap) footerWrap.hidden = false;
+    }
+
+    function hideFooter() {
+      if (footerWrap) footerWrap.hidden = true;
     }
 
     function resetImportState() {
@@ -1975,12 +1977,13 @@ Ticket ids use the format "#184521".`;
       }
       if (previewWrap) previewWrap.hidden = true;
       if (previewBody) previewBody.innerHTML = "";
-      if (cancelBtn) cancelBtn.disabled = true;
+      if (cancelBtn) cancelBtn.disabled = !footerWrap;
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.textContent = "Import tickets";
       }
       dropzone.classList.remove("import-dropzone--active");
+      hideFooter();
     }
 
     function renderImportPreview(tickets) {
@@ -2032,11 +2035,12 @@ Ticket ids use the format "#184521".`;
     function handleCsvText(text) {
       const result = parseCsvTickets(text);
       pendingTickets = result.tickets;
+      showFooter();
       renderImportStatus(result);
       renderImportPreview(result.tickets);
 
       const canImport = result.tickets.length > 0;
-      if (cancelBtn) cancelBtn.disabled = !canImport;
+      if (cancelBtn) cancelBtn.disabled = false;
       if (submitBtn) {
         submitBtn.disabled = !canImport;
         submitBtn.textContent = canImport
@@ -2049,6 +2053,7 @@ Ticket ids use the format "#184521".`;
       if (!file) return;
       if (!/\.csv$/i.test(file.name) && file.type !== "text/csv") {
         pendingTickets = [];
+        showFooter();
         if (statusEl) {
           statusEl.hidden = false;
           statusEl.className = "import-status import-status--error";
@@ -2064,12 +2069,15 @@ Ticket ids use the format "#184521".`;
       const reader = new FileReader();
       reader.onload = () => handleCsvText(String(reader.result || ""));
       reader.onerror = () => {
+        showFooter();
         if (statusEl) {
           statusEl.hidden = false;
           statusEl.className = "import-status import-status--error";
           statusEl.innerHTML =
             '<span class="import-status__icon" aria-hidden="true">!</span><span>Could not read the CSV file.</span>';
         }
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = true;
       };
       reader.readAsText(file);
     }
@@ -2114,6 +2122,39 @@ Ticket ids use the format "#184521".`;
         replaceImportedTickets(pendingTickets);
         const count = pendingTickets.length;
         resetImportState();
+        if (typeof onImportSuccess === "function") {
+          onImportSuccess(count);
+        }
+      });
+    }
+
+    resetImportState();
+    return { resetImportState, openFilePicker: () => fileInput.click() };
+  }
+
+  function initSettings() {
+    const dataSourceMerge = document.getElementById("data-source-merge");
+    const dataSourceImportOnly = document.getElementById("data-source-import-only");
+    const statusEl = document.getElementById("import-status");
+    const cancelBtn = document.getElementById("import-cancel-btn");
+    const submitBtn = document.getElementById("import-submit-btn");
+
+    function setDataSourceRadios() {
+      const mode = getDataSourceMode();
+      if (dataSourceMerge) dataSourceMerge.checked = mode === "merge";
+      if (dataSourceImportOnly) dataSourceImportOnly.checked = mode === "import-only";
+    }
+
+    bindImportUi({
+      dropzone: document.getElementById("import-dropzone"),
+      fileInput: document.getElementById("import-file-input"),
+      templateBtn: document.getElementById("import-template-btn"),
+      statusEl,
+      previewWrap: document.getElementById("import-preview-wrap"),
+      previewBody: document.getElementById("import-preview-body"),
+      cancelBtn,
+      submitBtn,
+      onImportSuccess(count) {
         if (statusEl) {
           statusEl.hidden = false;
           statusEl.className = "import-status import-status--success";
@@ -2121,8 +2162,8 @@ Ticket ids use the format "#184521".`;
         }
         if (cancelBtn) cancelBtn.disabled = true;
         if (submitBtn) submitBtn.disabled = true;
-      });
-    }
+      },
+    });
 
     document.querySelectorAll('input[name="data-source"]').forEach((input) => {
       input.addEventListener("change", () => {
@@ -2132,7 +2173,56 @@ Ticket ids use the format "#184521".`;
     });
 
     setDataSourceRadios();
-    resetImportState();
+  }
+
+  function initDashboardImportModal(onImportComplete) {
+    const modal = document.getElementById("import-modal");
+    const backdrop = document.getElementById("import-modal-backdrop");
+    const closeBtn = document.getElementById("import-modal-close");
+    const importBtn = document.getElementById("dashboard-import-btn");
+    const insightsImportBtn = document.getElementById("insights-import-btn");
+    const dropzone = document.getElementById("import-modal-dropzone");
+
+    if (!modal) return;
+
+    function openModal() {
+      modal.hidden = false;
+      document.body.classList.add("import-modal-open");
+      if (dropzone) dropzone.focus();
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+      document.body.classList.remove("import-modal-open");
+      importUi?.resetImportState();
+    }
+
+    const importUi = bindImportUi({
+      dropzone,
+      fileInput: document.getElementById("import-modal-file-input"),
+      templateBtn: document.getElementById("import-modal-template-btn"),
+      statusEl: document.getElementById("import-modal-status"),
+      previewWrap: document.getElementById("import-modal-preview-wrap"),
+      previewBody: document.getElementById("import-modal-preview-body"),
+      cancelBtn: document.getElementById("import-modal-cancel-btn"),
+      submitBtn: document.getElementById("import-modal-submit-btn"),
+      footerWrap: document.getElementById("import-modal-footer"),
+      onImportSuccess() {
+        closeModal();
+        if (typeof onImportComplete === "function") {
+          onImportComplete();
+        }
+      },
+    });
+
+    importBtn?.addEventListener("click", openModal);
+    insightsImportBtn?.addEventListener("click", openModal);
+    closeBtn?.addEventListener("click", closeModal);
+    backdrop?.addEventListener("click", closeModal);
+
+    modal.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+    });
   }
 
   function getInsightsTierColors() {
@@ -2565,9 +2655,17 @@ Ticket ids use the format "#184521".`;
 
       insightsCategoryLabels = data.categoryLabels;
       const tierColors = getInsightsTierColors();
+      const categoryChartHeight = Math.max(220, 100 + data.categoryLabels.length * 36);
       const categoryChartWrap = categoryChartCanvas.closest(".insights-chart-wrap");
       if (categoryChartWrap) {
-        categoryChartWrap.style.minHeight = `${Math.max(140, data.categoryLabels.length * 36)}px`;
+        categoryChartWrap.style.minHeight = `${categoryChartHeight}px`;
+        categoryChartWrap.style.height = `${categoryChartHeight}px`;
+      }
+
+      const donutChartWrap = tierChartCanvas.closest(".insights-chart-wrap--donut");
+      if (donutChartWrap) {
+        donutChartWrap.style.minHeight = "220px";
+        donutChartWrap.style.height = "220px";
       }
 
       const tierDatasets = TIERS.map((tier) => ({
@@ -2591,8 +2689,14 @@ Ticket ids use the format "#184521".`;
           indexAxis: "y",
           responsive: true,
           maintainAspectRatio: false,
+          datasets: {
+            bar: {
+              categoryPercentage: 0.72,
+              barPercentage: 0.88,
+            },
+          },
           layout: {
-            padding: { left: 4, bottom: 4 },
+            padding: { left: 4, bottom: 4, top: 4 },
           },
           scales: {
             x: {
@@ -2761,6 +2865,19 @@ Ticket ids use the format "#184521".`;
       updateAnalyzeButton(allTickets, ticketFilters);
       if (dashboardView === "insights") renderInsightsView();
     }
+
+    initDashboardImportModal(() => {
+      reloadDashboardTickets();
+    });
+
+    let insightsResizeTimer = null;
+    window.addEventListener("resize", () => {
+      if (dashboardView !== "insights") return;
+      window.clearTimeout(insightsResizeTimer);
+      insightsResizeTimer = window.setTimeout(() => {
+        renderInsightsView();
+      }, 150);
+    });
 
     function applyTicketFiltersChange(change) {
       if (change.reset) {

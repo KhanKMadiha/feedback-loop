@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260611g">
+  <link rel="stylesheet" href="styles.css?v=20260612d">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -24,15 +24,21 @@
         <a href="submit-feature-request.html" class="app-header__tab">Submit feature request</a>
         <a href="settings.html" class="app-header__tab">Settings</a>
       </nav>
-      <div class="app-header__help-wrap">
-        <button type="button" class="app-header__icon-btn" aria-describedby="help-tooltip" aria-label="Help">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="app-header__actions">
+        <button type="button" class="app-header__import-btn" id="dashboard-import-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 16V4"/><path d="M8 8l4-4 4 4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          Import
         </button>
-        <div id="help-tooltip" class="app-header__help-tooltip" role="tooltip">
-          <span class="app-header__help-tooltip-title">Feedback Loop</span>
-          <span class="app-header__help-tooltip-divider" aria-hidden="true"></span>
-          <span class="app-header__help-tooltip-line">AI-native VoC dashboard for support and product teams.</span>
-          <span class="app-header__help-tooltip-line">Log customer feature requests. Surface ranked themes. Ship what matters.</span>
+        <div class="app-header__help-wrap">
+          <button type="button" class="app-header__icon-btn" aria-describedby="help-tooltip" aria-label="Help">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </button>
+          <div id="help-tooltip" class="app-header__help-tooltip" role="tooltip">
+            <span class="app-header__help-tooltip-title">Feedback Loop</span>
+            <span class="app-header__help-tooltip-divider" aria-hidden="true"></span>
+            <span class="app-header__help-tooltip-line">AI-native VoC dashboard for support and product teams.</span>
+            <span class="app-header__help-tooltip-line">Log customer feature requests. Surface ranked themes. Ship what matters.</span>
+          </div>
         </div>
       </div>
     </div>
@@ -82,7 +88,14 @@
         </section>
       </div>
 
-      <p id="insights-empty" class="insights-empty" hidden>No tickets available yet. Import tickets in Settings or submit a feature request.</p>
+      <div id="insights-empty" class="insights-empty" hidden>
+        <p class="insights-empty__text">No tickets available yet.</p>
+        <div class="insights-empty__actions">
+          <button type="button" class="btn btn--secondary btn--compact" id="insights-import-btn">Import tickets</button>
+          <span class="insights-empty__or">or</span>
+          <a href="submit-feature-request.html" class="insights-empty__link">submit a feature request</a>
+        </div>
+      </div>
     </div>
 
     <div id="dashboard-analysis" class="dashboard-layout" role="tabpanel" aria-labelledby="dashboard-view-tab-analysis" hidden>
@@ -147,6 +160,61 @@
   <footer class="page-footer page-footer--dashboard">
     <p>Portfolio demo — limited to 5 runs per hour.</p>
   </footer>
+
+  <div id="import-modal" class="import-modal" hidden>
+    <div class="import-modal__backdrop" id="import-modal-backdrop" aria-hidden="true"></div>
+    <div
+      class="import-modal__dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="import-modal-title"
+    >
+      <button type="button" class="import-modal__close" id="import-modal-close" aria-label="Close">×</button>
+      <h2 class="import-modal__title" id="import-modal-title">Import tickets</h2>
+      <p class="import-modal__lead">Drop a CSV file or browse to select. Up to 500 rows.</p>
+      <div
+        id="import-modal-dropzone"
+        class="import-dropzone import-dropzone--modal"
+        tabindex="0"
+        role="button"
+        aria-label="Upload CSV file"
+      >
+        <input type="file" id="import-modal-file-input" class="import-dropzone__input" accept=".csv,text/csv" hidden>
+        <span class="import-dropzone__icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 16V4"/><path d="M8 8l4-4 4 4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </span>
+        <p class="import-dropzone__title">Drop CSV here, or <span class="import-dropzone__browse">browse files</span></p>
+      </div>
+      <button type="button" class="import-template-btn import-template-btn--modal" id="import-modal-template-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Download CSV template
+      </button>
+      <p class="import-modal__columns-hint">Required columns: feature_request_name, category, account_name, account_tier, priority, date</p>
+      <div id="import-modal-footer" class="import-modal__footer" hidden>
+        <div id="import-modal-status" class="import-status" hidden role="status"></div>
+        <div id="import-modal-preview-wrap" class="import-preview" hidden>
+          <h4 class="import-preview__title">Preview (first 3 rows)</h4>
+          <div class="import-preview__table-wrap">
+            <table class="import-preview__table">
+              <thead>
+                <tr>
+                  <th scope="col">Ticket ID</th>
+                  <th scope="col">Feature request</th>
+                  <th scope="col">Category</th>
+                  <th scope="col">Tier</th>
+                </tr>
+              </thead>
+              <tbody id="import-modal-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="import-actions import-actions--modal">
+          <button type="button" class="btn btn--secondary" id="import-modal-cancel-btn">Clear</button>
+          <button type="button" class="btn btn--primary" id="import-modal-submit-btn" disabled>Import tickets</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="ticket-slide-panel" class="ticket-slide-panel" hidden>
     <div class="ticket-slide-panel__backdrop" id="ticket-slide-panel-backdrop" aria-hidden="true"></div>
