@@ -11,7 +11,7 @@
 
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-const ALLOWED_MODEL = "claude-sonnet-4-20250514";
+const ALLOWED_MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 8192;
 const MAX_TICKETS = 25;
 const DEFAULT_ORIGINS =

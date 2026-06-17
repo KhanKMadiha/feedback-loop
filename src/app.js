@@ -11,7 +11,7 @@
 
   const STORAGE_KEY = "feature-signal-tickets";
   const DATA_SOURCE_KEY = "feature-signal-data-source";
-  const MODEL = "claude-sonnet-4-20250514";
+  const MODEL = "claude-sonnet-4-6";
   const MOCK_TICKETS_PATH = "../data/mock-tickets.json";
   const IMPORT_MAX_ROWS = 500;
   const TIERS = ["Enterprise", "Pro", "Free"];
