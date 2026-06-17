@@ -172,9 +172,9 @@ The JSON must have exactly one top-level field:
 clusters: an array of theme objects, ordered from highest to lowest priority. Each theme object must have exactly these fields:
 
 theme_name: three to five words maximum. Must read like a Jira ticket title or a Linear issue title. Be specific to the actual requests, never generic. Never use the words Enterprise, Platform, Operations, or Management. Good examples: Identity Provider Sync, Bulk Migration API, SSO Session Controls. Bad examples: Enterprise Onboarding, Scale Operations.
-theme_description: exactly two lines separated by a newline character. Line one states the core customer need in under 15 words. Line two states the business impact if unresolved in under 15 words. Do not mention affected account names.
-theme_description_full: structured text for exported product briefs only, using newline-separated lines in this exact format. Line one is a single opening sentence framing the overall problem. Then for each account in the linked tickets write one bullet point describing their specific issue based on their feature request and priority justification. Every account must have its own bullet point. Include every single account from the linked tickets without exception. Do not select only some accounts to mention. If four tickets are in this theme from four accounts there must be four bullet points. Do not summarise multiple accounts into one bullet or omit any account. Each bullet line must start with the bullet character followed by a space, then the account name and their specific issue. Then one final closing sentence stating the business consequence if unresolved.
-recommended_action: an object with two fields. title which is a specific actionable recommendation for the engineering or product team, for example Build SCIM 2.0 provisioning with Okta and Azure AD group sync. description which is two sentences expanding on what to build and why it unblocks the most customers.
+theme_description: exactly two lines separated by a newline character. Line one states the core customer need in under 15 words. Line two states the business impact if unresolved in under 15 words. Do not mention affected account names. Synthesise the need; do not copy phrasing from ticket fields.
+theme_description_full: structured text for exported product briefs and the Analysis theme summary, using newline-separated lines in this exact format. Line one is a single opening sentence framing the overall problem in your own analytical voice. Then for each account in the linked tickets write one bullet point. Every account must have its own bullet point. Include every single account from the linked tickets without exception. Do not select only some accounts to mention. If four tickets are in this theme from four accounts there must be four bullet points. Do not summarise multiple accounts into one bullet or omit any account. Each bullet line must start with the bullet character followed by a space, then the account name, a colon, and the blocker for that account. Account bullet rules (critical): state what is blocking that account in the customer's own words — the operational pain or constraint they cannot get past. Write as analysis, not transcription. Do NOT lift, paraphrase closely, or concatenate wording from feature_request_name, feature_request_description, or priority_justification. Each bullet must read differently from the ticket detail a reader would see below; if it could be mistaken for pasted ticket text, rewrite it. Then one final closing sentence stating the business consequence if unresolved.
+recommended_action: an object with two fields, title and description. Recommended action rules (critical): use the priority levels already present in the linked ticket data (Critical, High, Medium, Low) — do not ignore or flatten them across distinct asks. If this theme contains only one distinct technical capability, title is one specific actionable recommendation for engineering or product (for example Build SCIM 2.0 provisioning with Okta and Azure AD group sync) and description is two sentences expanding on what to build and why it unblocks the most customers. If this theme contains more than one distinct technical capability (for example real-time sync versus a bulk import endpoint), do NOT merge them into one flat sentence. Instead, description must use exactly one line per capability: each line names the specific build action for that capability and reflects the priority of the highest-priority ticket attached to it (state Critical, High, Medium, or Low at the start of the line). Order those lines from highest to lowest priority: Critical first, then High, then Medium, then Low. title in this case should be a short umbrella phrase for the theme (three to eight words), not a merged list of every capability.
 linked_tickets: an array of ticket IDs assigned to this theme only. Include every ticket in this theme and no others.
 ticket_count: the number of tickets in this theme.
 customer_impact: one of Low, Medium, High, or Very high based on the priority and tier of the tickets in this theme.
@@ -1365,7 +1365,6 @@ Ticket ids use the format "#184521".`;
 
     const bodySize = 11;
     const titleSize = 20;
-    const ticketsSectionSize = 16;
     const ticketHeadingSize = 13;
     const metaSize = 10;
     const labelSize = 8;
@@ -1401,7 +1400,7 @@ Ticket ids use the format "#184521".`;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(...labelColor);
-      doc.text(`Generated by Feedback Loop · ${exportDate}`, margin, footerTop);
+      doc.text("Generated by Feedback Loop", margin, footerTop);
       doc.text(String(pageNumber), pageWidth - margin, footerTop, { align: "right" });
     }
 
@@ -1488,19 +1487,43 @@ Ticket ids use the format "#184521".`;
       }
     }
 
-    function measureTicketBlockStartHeight(ticket) {
+    function measureLeftBorderedBlockHeight(text, options = {}) {
+      const { italic = false, borderWidth = 0.25 } = options;
+      const textPadFromBorder = (8 * 25.4) / 96;
+      const textWidth = contentWidth - borderWidth - textPadFromBorder;
+
+      doc.setFont("helvetica", italic ? "italic" : "normal");
+      doc.setFontSize(bodySize);
+      const lines = doc.splitTextToSize(String(text || "—"), textWidth);
+      const textHeight = doc.getTextDimensions(lines).h;
+      const labelHeight = 4.5;
+
+      return labelHeight + textHeight + 4;
+    }
+
+    function measureTicketBlockHeight(ticket) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(ticketHeadingSize);
       const nameLines = doc.splitTextToSize(getTicketTitle(ticket) || "—", contentWidth);
       const headingLineHeight = doc.getTextDimensions("Mg").h;
+      const headingHeight = nameLines.length * headingLineHeight + 2;
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(metaSize);
       const metaLineHeight = doc.getTextDimensions("Mg").h;
-      return nameLines.length * headingLineHeight + 2 + metaLineHeight + 4;
+      const metadataHeight = metaLineHeight + 4;
+
+      const sectionGapPx = (8 * 25.4) / 96;
+      const featureBlockHeight = measureLeftBorderedBlockHeight(ticket.feature_request_description);
+      const impactBlockHeight = measureLeftBorderedBlockHeight(ticket.priority_justification, {
+        italic: true,
+      });
+
+      return headingHeight + metadataHeight + featureBlockHeight + sectionGapPx + impactBlockHeight;
     }
 
     function ensureSpaceForTicketBlock(ticket) {
-      const needed = measureTicketBlockStartHeight(ticket);
+      const needed = measureTicketBlockHeight(ticket);
       if (y + needed > contentBottom) {
         doc.addPage();
         y = contentTop;
@@ -1606,13 +1629,7 @@ Ticket ids use the format "#184521".`;
     doc.line(margin, y, pageWidth - margin, y);
     y += sectionGap + 2;
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(ticketsSectionSize);
-    doc.setTextColor(...navy);
-    const ticketsHeadingHeight = doc.getTextDimensions("Mg").h;
-    ensureSpace(ticketsHeadingHeight);
-    doc.text("Tickets", margin, y);
-    y += ticketsHeadingHeight + sectionGap;
+    addUppercaseLabel("Tickets");
 
     linkedTickets.forEach((ticket, index) => {
       ensureSpaceForTicketBlock(ticket);
