@@ -2440,6 +2440,41 @@ Ticket ids use the format "#184521".`;
         ticketPage = page;
         refreshTicketViews(activeTicketId);
       });
+
+      if (ticketGrid) {
+        ticketGrid.scrollTop = 0;
+      }
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          layoutTicketTableArea();
+        });
+      });
+    }
+
+    function layoutTicketTableArea() {
+      if (!ticketGrid || dashboardView !== "analysis") return;
+
+      const panelCard = ticketGrid.closest(".panel-card");
+      if (!panelCard) return;
+
+      const header = panelCard.querySelector(".panel-card__header");
+      const filterBar = panelCard.querySelector(".filter-bar");
+      const pagination = panelCard.querySelector(".ticket-pagination");
+
+      const reservedHeight =
+        (header?.offsetHeight || 0) +
+        (filterBar?.offsetHeight || 0) +
+        (pagination && !pagination.hidden ? pagination.offsetHeight : 0);
+
+      const availableHeight = panelCard.clientHeight - reservedHeight;
+      if (availableHeight > 0) {
+        ticketGrid.style.height = `${availableHeight}px`;
+        ticketGrid.style.maxHeight = "";
+      } else {
+        ticketGrid.style.height = "";
+        ticketGrid.style.maxHeight = "calc(100vh - 18rem)";
+      }
     }
 
     function resolveTicket(ticketId) {
@@ -2910,7 +2945,16 @@ Ticket ids use the format "#184521".`;
         document.activeElement.blur();
       }
 
-      if (dashboardView === "insights") renderInsightsView();
+      if (dashboardView === "insights") {
+        renderInsightsView();
+      } else {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            refreshTicketViews(null);
+            layoutTicketTableArea();
+          });
+        });
+      }
     }
 
     async function reloadDashboardTickets() {
@@ -2928,14 +2972,18 @@ Ticket ids use the format "#184521".`;
 
     let insightsResizeTimer = null;
     window.addEventListener("resize", () => {
-      if (dashboardView !== "insights") return;
       window.clearTimeout(insightsResizeTimer);
       insightsResizeTimer = window.setTimeout(() => {
-        if (categoryChart || tierChart) {
-          layoutInsightsChartAreas();
-        } else {
-          renderInsightsView();
+        if (dashboardView === "insights") {
+          if (categoryChart || tierChart) {
+            layoutInsightsChartAreas();
+          } else {
+            renderInsightsView();
+          }
+          return;
         }
+
+        layoutTicketTableArea();
       }, 150);
     });
 

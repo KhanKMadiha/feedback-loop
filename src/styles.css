@@ -984,7 +984,8 @@ html:has(body.dashboard-page) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 7.5rem;
+  width: auto;
+  min-width: 0;
   height: 100%;
   padding: 0 1.35rem;
   border: none;
@@ -1012,8 +1013,8 @@ html:has(body.dashboard-page) {
 .dashboard-view-tab--active::after {
   content: "";
   position: absolute;
-  left: 1rem;
-  right: 1rem;
+  left: 1.35rem;
+  right: 1.35rem;
   bottom: 0.3rem;
   height: 2px;
   border-radius: 1px;
@@ -1026,6 +1027,7 @@ html:has(body.dashboard-page) {
 }
 
 #dashboard-analysis:not([hidden]) {
+  display: grid;
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -1519,9 +1521,14 @@ html:has(body.dashboard-page) {
 }
 
 .dashboard-col--tickets .ticket-table-wrap {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 8rem;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-col--tickets .ticket-table {
+  width: 100%;
 }
 
 .dashboard-col--tickets .ticket-pagination {
@@ -2444,7 +2451,7 @@ html:has(body.dashboard-page) {
 }
 
 .dashboard-page > main {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
