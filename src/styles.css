@@ -1511,7 +1511,7 @@ html:has(body.dashboard-page) {
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -1521,14 +1521,23 @@ html:has(body.dashboard-page) {
 }
 
 .dashboard-col--tickets .ticket-table-wrap {
-  flex: 1 1 auto;
-  min-height: 8rem;
-  overflow: auto;
+  flex: 1 1 0;
+  min-height: 0;
+  height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .dashboard-col--tickets .ticket-table {
   width: 100%;
+}
+
+.dashboard-col--tickets .ticket-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
 }
 
 .dashboard-col--tickets .ticket-pagination {
@@ -2512,9 +2521,66 @@ html:has(body.dashboard-page) {
 }
 
 @media (max-width: 960px) {
+  html:has(body.dashboard-page) {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .dashboard-page {
+    height: auto;
+    min-height: 100vh;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .dashboard-page > main {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding-bottom: calc(var(--dashboard-footer-height) + 0.75rem);
+  }
+
+  .main-content--dashboard {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
   .dashboard-layout {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    height: auto;
+    overflow: visible;
+    gap: 1rem;
+  }
+
+  .dashboard-col {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .dashboard-col--tickets > .panel-card,
+  .panel-card--themes {
+    height: auto;
+    max-height: none;
+    min-height: 22rem;
+  }
+
+  .dashboard-col--tickets .ticket-table-wrap {
+    flex: 1 1 auto;
+    min-height: 14rem;
+    height: auto;
+    max-height: 26rem;
+    overflow-y: auto;
+  }
+
+  #dashboard-analysis:not([hidden]) {
+    flex: 0 0 auto;
+    height: auto;
+    overflow: visible;
   }
 
   .insights-charts {
@@ -2523,7 +2589,8 @@ html:has(body.dashboard-page) {
   }
 
   .dashboard-insights {
-    overflow-y: auto;
+    overflow: visible;
+    flex: 0 0 auto;
   }
 
   .insights-charts .insights-chart-card {

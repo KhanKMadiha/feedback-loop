@@ -2443,37 +2443,8 @@ Ticket ids use the format "#184521".`;
 
       if (ticketGrid) {
         ticketGrid.scrollTop = 0;
-      }
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          layoutTicketTableArea();
-        });
-      });
-    }
-
-    function layoutTicketTableArea() {
-      if (!ticketGrid || dashboardView !== "analysis") return;
-
-      const panelCard = ticketGrid.closest(".panel-card");
-      if (!panelCard) return;
-
-      const header = panelCard.querySelector(".panel-card__header");
-      const filterBar = panelCard.querySelector(".filter-bar");
-      const pagination = panelCard.querySelector(".ticket-pagination");
-
-      const reservedHeight =
-        (header?.offsetHeight || 0) +
-        (filterBar?.offsetHeight || 0) +
-        (pagination && !pagination.hidden ? pagination.offsetHeight : 0);
-
-      const availableHeight = panelCard.clientHeight - reservedHeight;
-      if (availableHeight > 0) {
-        ticketGrid.style.height = `${availableHeight}px`;
-        ticketGrid.style.maxHeight = "";
-      } else {
         ticketGrid.style.height = "";
-        ticketGrid.style.maxHeight = "calc(100vh - 18rem)";
+        ticketGrid.style.maxHeight = "";
       }
     }
 
@@ -2951,7 +2922,6 @@ Ticket ids use the format "#184521".`;
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             refreshTicketViews(null);
-            layoutTicketTableArea();
           });
         });
       }
@@ -2972,18 +2942,14 @@ Ticket ids use the format "#184521".`;
 
     let insightsResizeTimer = null;
     window.addEventListener("resize", () => {
+      if (dashboardView !== "insights") return;
       window.clearTimeout(insightsResizeTimer);
       insightsResizeTimer = window.setTimeout(() => {
-        if (dashboardView === "insights") {
-          if (categoryChart || tierChart) {
-            layoutInsightsChartAreas();
-          } else {
-            renderInsightsView();
-          }
-          return;
+        if (categoryChart || tierChart) {
+          layoutInsightsChartAreas();
+        } else {
+          renderInsightsView();
         }
-
-        layoutTicketTableArea();
       }, 150);
     });
 
