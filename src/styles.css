@@ -2004,6 +2004,9 @@ html:has(body.dashboard-page) {
 }
 
 .theme-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   padding: 0 1.25rem 1.75rem;
 }
 

@@ -155,25 +155,39 @@
 
   // --- Claude signal synthesis ---
 
-  const CLUSTER_SYSTEM_PROMPT = `You are a product intelligence assistant embedded in a Voice of the Customer tool used by a support team to brief engineering and product leadership. You will receive a list of enterprise SaaS feature request tickets. Each ticket has a category, account name, account tier, priority, priority justification, and feature request description. Analyse the tickets and return a JSON object only with no markdown formatting and no extra text. The JSON must have exactly these fields:
+  const CLUSTER_SYSTEM_PROMPT = `You are a product intelligence assistant embedded in a Voice of the Customer tool used by a support team to brief engineering and product leadership. You will receive a list of enterprise SaaS feature request tickets. Each ticket has a category, account name, account tier, priority, priority justification, and feature request description.
+
+Analyse the tickets and cluster them into themes. Return a JSON object only with no markdown formatting and no extra text.
+
+Grouping rules (critical):
+- Group tickets into the same theme only when they share the same underlying capability gap or root cause: the specific missing product capability that would satisfy every request in the group with one coherent engineering effort.
+- Do NOT group tickets together only because they share a category (for example Authentication), product area, or broad topic. Category similarity alone is never sufficient.
+- Do NOT group tickets that would require different engineering workstreams, different product surfaces, or unrelated fixes to resolve.
+- Example of incorrect grouping: a permission sync request and a Slack notification routing request must NOT be one theme just because both are identity-adjacent.
+- If a ticket does not share a root cause with any other ticket in the batch, it must become its own single-ticket theme. Never fold unrelated tickets into a larger theme to reduce theme count.
+- Every ticket ID from the input must appear in exactly one theme's linked_tickets array. Do not omit, duplicate, or invent ticket IDs.
+
+The JSON must have exactly one top-level field:
+
+clusters: an array of theme objects, ordered from highest to lowest priority. Each theme object must have exactly these fields:
 
 theme_name: three to five words maximum. Must read like a Jira ticket title or a Linear issue title. Be specific to the actual requests, never generic. Never use the words Enterprise, Platform, Operations, or Management. Good examples: Identity Provider Sync, Bulk Migration API, SSO Session Controls. Bad examples: Enterprise Onboarding, Scale Operations.
 theme_description: exactly two lines separated by a newline character. Line one states the core customer need in under 15 words. Line two states the business impact if unresolved in under 15 words. Do not mention affected account names.
-theme_description_full: structured text for exported product briefs only, using newline-separated lines in this exact format. Line one is a single opening sentence framing the overall problem. Then for each account in the linked tickets write one bullet point describing their specific issue based on their feature request and priority justification. Every account must have its own bullet point. Include every single account from the linked tickets without exception. Do not select only some accounts to mention. If four tickets are selected from four accounts there must be four bullet points. Do not summarise multiple accounts into one bullet or omit any account. Each bullet line must start with the bullet character followed by a space, then the account name and their specific issue. Then one final closing sentence stating the business consequence if unresolved.
+theme_description_full: structured text for exported product briefs only, using newline-separated lines in this exact format. Line one is a single opening sentence framing the overall problem. Then for each account in the linked tickets write one bullet point describing their specific issue based on their feature request and priority justification. Every account must have its own bullet point. Include every single account from the linked tickets without exception. Do not select only some accounts to mention. If four tickets are in this theme from four accounts there must be four bullet points. Do not summarise multiple accounts into one bullet or omit any account. Each bullet line must start with the bullet character followed by a space, then the account name and their specific issue. Then one final closing sentence stating the business consequence if unresolved.
 recommended_action: an object with two fields. title which is a specific actionable recommendation for the engineering or product team, for example Build SCIM 2.0 provisioning with Okta and Azure AD group sync. description which is two sentences expanding on what to build and why it unblocks the most customers.
-linked_tickets: an array of all ticket IDs passed to you. Include every single one, do not filter or reduce this list.
-ticket_count: the total number of tickets passed to you.
-customer_impact: one of Low, Medium, High, or Very high based on the priority and tier of the tickets.
-priority: the highest priority level present across all tickets, one of Critical, High, Medium, or Low.
-top_linked_tickets: an array of the three most relevant tickets each with id, feature_request_name, and date.
-oldest_request_date: the earliest date value across all linked tickets in YYYY-MM-DD format.
-affected_accounts: an array of unique account names across all linked tickets.
-enterprise_ticket_count: the number of tickets where account_tier is Enterprise.
+linked_tickets: an array of ticket IDs assigned to this theme only. Include every ticket in this theme and no others.
+ticket_count: the number of tickets in this theme.
+customer_impact: one of Low, Medium, High, or Very high based on the priority and tier of the tickets in this theme.
+priority: the highest priority level present across tickets in this theme, one of Critical, High, Medium, or Low.
+top_linked_tickets: an array of up to the three most relevant tickets in this theme, each with id, feature_request_name, and date.
+oldest_request_date: the earliest date value across linked tickets in this theme in YYYY-MM-DD format.
+affected_accounts: an array of unique account names across linked tickets in this theme.
+enterprise_ticket_count: the number of tickets in this theme where account_tier is Enterprise.
 
 Ticket ids use the format "#184521".`;
 
   function buildClusterUserMessage(tickets) {
-    return `Synthesise product signal from these ${tickets.length} feature request tickets:\n\n${JSON.stringify(tickets, null, 2)}`;
+    return `Cluster these ${tickets.length} feature request tickets into themes by shared root cause. Tickets that do not share a capability gap with others must each become their own theme.\n\n${JSON.stringify(tickets, null, 2)}`;
   }
 
   /**
@@ -1181,7 +1195,7 @@ Ticket ids use the format "#184521".`;
     return "Lower urgency relative to other themes, but still worth tracking for emerging patterns.";
   }
 
-  function renderThemePanelHtml(cluster, visibleTickets, resolveTicket) {
+  function renderThemePanelHtml(cluster, visibleTickets, resolveTicket, themeIndex = 0) {
     const metrics = getThemeMetrics(cluster, visibleTickets, resolveTicket);
     const recommended = cluster.recommended_action;
     const recommendedTitle = recommended?.title || "";
@@ -1217,7 +1231,7 @@ Ticket ids use the format "#184521".`;
       .join("");
 
     return `
-      <article class="theme-detail-card">
+      <article class="theme-detail-card" data-theme-index="${themeIndex}">
         <header class="theme-detail-card__header">
           <div class="theme-detail-card__title-row">
             <span class="theme-detail-card__icon-wrap">${themeIconSvg()}</span>
@@ -2462,9 +2476,10 @@ Ticket ids use the format "#184521".`;
       }
       setThemesEmptyVisible(false);
 
-      const cluster = lastClusters[0];
       const visible = getVisibleTickets();
-      panel.innerHTML = renderThemePanelHtml(cluster, visible, resolveTicket);
+      panel.innerHTML = lastClusters
+        .map((cluster, index) => renderThemePanelHtml(cluster, visible, resolveTicket, index))
+        .join("");
     }
 
     function updateTicketDetailNav() {
@@ -2942,8 +2957,8 @@ Ticket ids use the format "#184521".`;
       switchDashboardView("insights");
     }
 
-    function openTicketFromThemePanel(ticketId) {
-      const cluster = lastClusters[0];
+    function openTicketFromThemePanel(ticketId, themeIndex = 0) {
+      const cluster = lastClusters[themeIndex] || lastClusters[0];
       const ticketIds = cluster ? cluster.linked_tickets || cluster.ticket_ids || [] : [];
       openTicketDetailFromCluster(ticketId, ticketIds);
     }
@@ -3048,7 +3063,9 @@ Ticket ids use the format "#184521".`;
         const exportBrief = e.target.closest('[data-action="export-brief-pdf"]');
         if (exportBrief) {
           e.preventDefault();
-          const cluster = lastClusters[0];
+          const card = exportBrief.closest(".theme-detail-card");
+          const themeIndex = Number(card?.dataset.themeIndex ?? 0);
+          const cluster = lastClusters[themeIndex];
           try {
             if (cluster) exportThemeBriefAsPdf(cluster, resolveTicket);
           } catch (err) {
@@ -3060,7 +3077,9 @@ Ticket ids use the format "#184521".`;
         const tag = e.target.closest(".ticket-tag--link");
         if (!tag) return;
         e.preventDefault();
-        openTicketFromThemePanel(tag.dataset.ticketId);
+        const card = tag.closest(".theme-detail-card");
+        const themeIndex = Number(card?.dataset.themeIndex ?? 0);
+        openTicketFromThemePanel(tag.dataset.ticketId, themeIndex);
       });
     }
 
@@ -3109,33 +3128,6 @@ Ticket ids use the format "#184521".`;
 
       try {
         const result = await clusterTicketsWithClaude(ticketsToAnalyse);
-        const selectedIds = ticketsToAnalyse.map((t) => t.id);
-        if (result.clusters?.[0]) {
-          const cluster = result.clusters[0];
-          cluster.linked_tickets = selectedIds;
-          cluster.ticket_count = selectedIds.length;
-          const topLinked = [];
-          const apiTop = Array.isArray(cluster.top_linked_tickets) ? cluster.top_linked_tickets : [];
-          for (const item of apiTop) {
-            const id = getTopLinkedTicketId(item);
-            if (!id || !selectedIds.includes(id)) continue;
-            if (topLinked.length >= 3) break;
-            if (!topLinked.some((entry) => getTopLinkedTicketId(entry) === id)) {
-              topLinked.push(item);
-            }
-          }
-          for (const id of selectedIds) {
-            if (topLinked.length >= 3) break;
-            if (topLinked.some((entry) => getTopLinkedTicketId(entry) === id)) continue;
-            const ticket = ticketsToAnalyse.find((t) => t.id === id);
-            topLinked.push({
-              id,
-              feature_request_name: ticket ? getTicketTitle(ticket) : id,
-              date: ticket?.date || "",
-            });
-          }
-          cluster.top_linked_tickets = topLinked.slice(0, 3);
-        }
         renderThemeResults(result.clusters);
       } catch (err) {
         showAlert(clusterAlert, formatSynthesisError(err.message), "error");
