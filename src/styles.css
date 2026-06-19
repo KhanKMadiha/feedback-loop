@@ -2035,7 +2035,7 @@ html:has(body.dashboard-page) {
 
 .theme-panel__export {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   margin-top: 0.25rem;
   padding-top: 0.75rem;
   border-top: 1px solid #e5e7eb;
