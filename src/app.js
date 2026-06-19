@@ -1345,6 +1345,22 @@ Ticket ids use the format "#184521".`;
     </button>`;
   }
 
+  function getThemeSummarySentence(cluster) {
+    const summary = cluster.summary || cluster.theme_description || "";
+    const firstLine = String(summary)
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .find(Boolean);
+    if (firstLine) return firstLine;
+
+    const fullText = cluster.summary_full || cluster.theme_description_full || "";
+    const fullFirstLine = String(fullText)
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .find((line) => line && !/^[•·\-*]\s/.test(line));
+    return fullFirstLine || "—";
+  }
+
   function themeBriefFilename() {
     const now = new Date();
     const day = String(now.getDate()).padStart(2, "0");
@@ -1383,54 +1399,55 @@ Ticket ids use the format "#184521".`;
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 20;
     const contentWidth = pageWidth - margin * 2;
-    const headerLineY = margin + 12;
-    const headerToThemeGap = (12 * 25.4) / 96;
-    const contentTop = headerLineY + headerToThemeGap + 6;
-    const footerTop = pageHeight - margin - 4;
-    const contentBottom = footerTop - 8;
+    const headerBarHeight = 14;
+    const footerTop = pageHeight - 12;
+    const contentTop = headerBarHeight + 10;
+    const contentBottom = footerTop - 6;
 
     const navy = [15, 23, 42];
+    const white = [255, 255, 255];
     const bodyColor = [55, 65, 81];
     const labelColor = [156, 163, 175];
     const accentBlue = [24, 95, 165];
     const lightBlue = [230, 241, 251];
     const ruleGrey = [229, 231, 235];
-    const metaGrey = [156, 163, 175];
+    const metaGrey = [107, 114, 128];
+    const boxGrey = [243, 244, 246];
+    const statsGrey = [247, 248, 250];
 
-    const bodySize = 11;
-    const titleSize = 20;
-    const ticketHeadingSize = 13;
-    const metaSize = 10;
-    const labelSize = 8;
-    const lineHeight = 5;
-    const summaryLineHeight = 6.5;
-    const sectionGap = 6;
-    const borderPad = 3;
-    const blueBorderWidth = 0.8;
+    const bodySize = 10.5;
+    const titleSize = 18;
+    const ticketTitleSize = 11;
+    const metaSize = 9;
+    const labelSize = 7.5;
+    const lineHeight = 4.8;
+    const sectionGap = 5;
+    const blueBorderWidth = 0.9;
+    const boxPad = 3.5;
 
     let y = contentTop;
 
     function drawPageHeader() {
+      doc.setFillColor(...navy);
+      doc.rect(0, 0, pageWidth, headerBarHeight, "F");
+
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
-      doc.setTextColor(...navy);
-      doc.text("Feedback Loop", margin, margin + 5);
+      doc.setTextColor(...white);
+      doc.text("Feedback Loop", margin, 6.5);
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(labelSize);
-      doc.setTextColor(...labelColor);
-      doc.text("PRODUCT BRIEF", pageWidth - margin, margin + 4, { align: "right" });
-      doc.text(exportDate, pageWidth - margin, margin + 8, { align: "right" });
+      doc.setFontSize(7.5);
+      doc.text("PRODUCT BRIEF", margin, 10.5);
 
-      doc.setDrawColor(...navy);
-      doc.setLineWidth(0.6);
-      doc.line(margin, headerLineY, pageWidth - margin, headerLineY);
+      doc.setFontSize(9);
+      doc.text(exportDate, pageWidth - margin, 8.5, { align: "right" });
     }
 
     function drawPageFooter(pageNumber) {
       doc.setDrawColor(...ruleGrey);
       doc.setLineWidth(0.2);
-      doc.line(margin, footerTop - 4, pageWidth - margin, footerTop - 4);
+      doc.line(0, footerTop - 4, pageWidth, footerTop - 4);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(...labelColor);
@@ -1445,297 +1462,247 @@ Ticket ids use the format "#184521".`;
       }
     }
 
-    function addUppercaseLabel(text) {
+    function addUppercaseLabel(text, x = margin) {
       ensureSpace(5);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(labelSize);
       doc.setTextColor(...labelColor);
-      doc.text(String(text).toUpperCase(), margin, y);
-      y += 4.5;
+      doc.text(String(text).toUpperCase(), x, y);
+      y += 4.2;
     }
 
     function addBodyParagraph(text, options = {}) {
-      const { italic = false, bold = false, width = contentWidth, spacing = lineHeight } = options;
-      doc.setFont("helvetica", bold ? "bold" : italic ? "italic" : "normal");
+      const { width = contentWidth, spacing = lineHeight, x = margin } = options;
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(bodySize);
       doc.setTextColor(...bodyColor);
       const lines = doc.splitTextToSize(String(text || "—"), width);
       for (const line of lines) {
         ensureSpace(spacing);
-        doc.text(line, margin, y);
+        doc.text(line, x, y);
         y += spacing;
       }
     }
 
-    function isBulletLine(line) {
-      return /^[•·\-*]\s/.test(line) || line.startsWith("•");
-    }
-
-    function stripBulletPrefix(line) {
-      return line.replace(/^[•·\-*]\s*/, "");
-    }
-
-    function renderThemeDescriptionFull(text) {
-      const rawLines = String(text || "—")
-        .split(/\n+/)
-        .map((line) => line.trim())
-        .filter(Boolean);
-      if (!rawLines.length) {
-        addBodyParagraph("—", { spacing: summaryLineHeight });
-        return;
-      }
-
-      const bulletIndent = 4;
-      const bulletSymbol = "•";
-      const bulletTextWidth = contentWidth - bulletIndent - 1;
-
-      let index = 0;
-      while (index < rawLines.length) {
-        const line = rawLines[index];
-        if (isBulletLine(line)) {
-          while (index < rawLines.length && isBulletLine(rawLines[index])) {
-            const bulletText = stripBulletPrefix(rawLines[index]);
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(bodySize);
-            doc.setTextColor(...bodyColor);
-            const wrappedLines = doc.splitTextToSize(bulletText, bulletTextWidth);
-            wrappedLines.forEach((wrapLine, wrapIndex) => {
-              ensureSpace(summaryLineHeight);
-              if (wrapIndex === 0) {
-                doc.text(bulletSymbol, margin + 1, y);
-                doc.text(wrapLine, margin + bulletIndent, y);
-              } else {
-                doc.text(wrapLine, margin + bulletIndent, y);
-              }
-              y += summaryLineHeight;
-            });
-            index += 1;
-          }
-          if (index < rawLines.length && !isBulletLine(rawLines[index])) {
-            y += (6 * 25.4) / 96;
-          }
-        } else {
-          addBodyParagraph(line, { spacing: summaryLineHeight });
-          index += 1;
-        }
-      }
-    }
-
-    function measureLeftBorderedBlockHeight(text, options = {}) {
-      const { italic = false, borderWidth = 0.25 } = options;
-      const textPadFromBorder = (8 * 25.4) / 96;
-      const textWidth = contentWidth - borderWidth - textPadFromBorder;
-
-      doc.setFont("helvetica", italic ? "italic" : "normal");
-      doc.setFontSize(bodySize);
-      const lines = doc.splitTextToSize(String(text || "—"), textWidth);
-      const textHeight = doc.getTextDimensions(lines).h;
-      const labelHeight = 4.5;
-
-      return labelHeight + textHeight + 4;
-    }
-
-    function measureTicketBlockHeight(ticket) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(ticketHeadingSize);
-      const nameLines = doc.splitTextToSize(getTicketTitle(ticket) || "—", contentWidth);
-      const headingLineHeight = doc.getTextDimensions("Mg").h;
-      const headingHeight = nameLines.length * headingLineHeight + 2;
-
+    function measureLabelParagraphBlock(label, text, width) {
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(metaSize);
-      const metaLineHeight = doc.getTextDimensions("Mg").h;
-      const metadataHeight = metaLineHeight + 4;
+      doc.setFontSize(bodySize);
+      const lines = doc.splitTextToSize(String(text || "—"), width);
+      return 4.2 + doc.getTextDimensions(lines).h + 2.5;
+    }
 
-      const sectionGapPx = (8 * 25.4) / 96;
-      const featureBlockHeight = measureLeftBorderedBlockHeight(ticket.feature_request_description);
-      const impactBlockHeight = measureLeftBorderedBlockHeight(ticket.priority_justification, {
-        italic: true,
+    function drawLabelParagraphBlock(label, text, width, x) {
+      addUppercaseLabel(label, x);
+      addBodyParagraph(text, { width, x });
+    }
+
+    function measureTicketBoxHeight(ticket, innerWidth) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(ticketTitleSize);
+      const titleLines = doc.splitTextToSize(getTicketTitle(ticket) || "—", innerWidth - 28);
+      const headerHeight = Math.max(8, titleLines.length * 4.2 + 2.5);
+      const metaHeight = 5.5;
+      const needHeight = measureLabelParagraphBlock(
+        "What they need",
+        ticket.feature_request_description || ticket.description,
+        innerWidth - boxPad * 2
+      );
+      const impactHeight = measureLabelParagraphBlock(
+        "Business impact",
+        ticket.priority_justification || ticket.business_impact,
+        innerWidth - boxPad * 2
+      );
+      return headerHeight + metaHeight + needHeight + impactHeight + boxPad * 2 + 4;
+    }
+
+    function drawTicketBox(ticket) {
+      const innerWidth = contentWidth;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(ticketTitleSize);
+      const titleLines = doc.splitTextToSize(getTicketTitle(ticket) || "—", innerWidth - 34);
+      const headerHeight = Math.max(8, titleLines.length * 4.2 + 2.5);
+      const boxHeight = measureTicketBoxHeight(ticket, innerWidth);
+      ensureSpace(boxHeight + 4);
+
+      const boxTop = y;
+      doc.setDrawColor(...ruleGrey);
+      doc.setLineWidth(0.3);
+      doc.rect(margin, boxTop, innerWidth, boxHeight);
+
+      let innerY = boxTop + boxPad;
+      doc.setFillColor(...boxGrey);
+      doc.rect(margin + 0.3, innerY, innerWidth - 0.6, headerHeight, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(ticketTitleSize);
+      doc.setTextColor(...navy);
+      titleLines.forEach((line, index) => {
+        doc.text(line, margin + boxPad, innerY + 5.2 + index * 4.2);
       });
 
-      return headingHeight + metadataHeight + featureBlockHeight + sectionGapPx + impactBlockHeight;
-    }
-
-    function ensureSpaceForTicketBlock(ticket) {
-      const needed = measureTicketBlockHeight(ticket);
-      if (y + needed > contentBottom) {
-        doc.addPage();
-        y = contentTop;
-      }
-    }
-
-    function drawTicketMetadataLine(ticket) {
-      const segments = [
-        { text: ticket.id || "—", color: metaGrey },
-        { text: ticket.account_name || "—", color: metaGrey },
-        { text: ticket.account_tier || "Free", color: metaGrey },
-        { text: ticket.priority || "Low", color: pdfPriorityRgb(ticket.priority) },
-        { text: formatTicketDate(ticket.date), color: metaGrey },
-      ];
-      const dotSeparator = " · ";
-
       doc.setFont("helvetica", "normal");
       doc.setFontSize(metaSize);
-      const metaLineHeight = doc.getTextDimensions("Mg").h;
-      ensureSpace(metaLineHeight);
-      const rowY = y;
-      let x = margin;
+      doc.setTextColor(...metaGrey);
+      doc.text(ticket.id || "—", margin + innerWidth - boxPad, innerY + 5.2, { align: "right" });
 
+      innerY += headerHeight + 1.5;
+
+      const segments = [
+        ticket.account_name || "—",
+        ticket.account_tier || "Free",
+        ticket.priority || "Low",
+        formatTicketDate(ticket.date),
+      ];
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(metaSize);
+      let metaX = margin + boxPad;
+      const metaY = innerY + 3.5;
       segments.forEach((segment, index) => {
         if (index > 0) {
           doc.setTextColor(...metaGrey);
-          doc.text(dotSeparator, x, rowY);
-          x += doc.getTextWidth(dotSeparator);
+          const sep = "   ";
+          doc.text(sep, metaX, metaY);
+          metaX += doc.getTextWidth(sep);
         }
-        doc.setTextColor(...segment.color);
-        doc.text(segment.text, x, rowY);
-        x += doc.getTextWidth(segment.text);
+        doc.setTextColor(index === 2 ? pdfPriorityRgb(ticket.priority) : metaGrey);
+        doc.text(segment, metaX, metaY);
+        metaX += doc.getTextWidth(segment);
       });
 
-      y = rowY + metaLineHeight;
+      innerY += 6;
+      y = innerY;
+      const textX = margin + boxPad;
+      const textWidth = innerWidth - boxPad * 2;
+      drawLabelParagraphBlock(
+        "What they need",
+        ticket.feature_request_description || ticket.description,
+        textWidth,
+        textX
+      );
+      drawLabelParagraphBlock(
+        "Business impact",
+        ticket.priority_justification || ticket.business_impact,
+        textWidth,
+        textX
+      );
+
+      y = boxTop + boxHeight + 4;
     }
 
-    function addLeftBorderedBlock(label, text, options = {}) {
-      const { italic = false, borderColor = ruleGrey, borderWidth = 0.25 } = options;
-      const textPadFromBorder = (8 * 25.4) / 96;
-      const borderX = margin;
-      const textX = borderX + borderWidth + textPadFromBorder;
-      const textWidth = contentWidth - borderWidth - textPadFromBorder;
-
-      addUppercaseLabel(label);
-
-      doc.setFont("helvetica", italic ? "italic" : "normal");
+    function drawRecommendedActionBox(text) {
+      const actionPadding = 3.5;
+      const textX = margin + blueBorderWidth + actionPadding + 1.5;
+      const textWidth = contentWidth - blueBorderWidth - actionPadding * 2 - 2;
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(bodySize);
-      const lines = doc.splitTextToSize(String(text || "—"), textWidth);
-      const textHeight = doc.getTextDimensions(lines).h;
+      const actionLines = doc.splitTextToSize(String(text || "—"), textWidth);
+      const labelHeight = 4.2;
+      const actionBoxHeight = actionPadding * 2 + labelHeight + actionLines.length * lineHeight;
 
-      ensureSpace(textHeight + 2);
-      const blockTop = y;
+      ensureSpace(actionBoxHeight + 2);
+      const boxTop = y;
 
-      doc.setDrawColor(...borderColor);
-      doc.setLineWidth(borderWidth);
-      doc.line(borderX, blockTop, borderX, blockTop + textHeight);
+      doc.setFillColor(...lightBlue);
+      doc.rect(margin, boxTop, contentWidth, actionBoxHeight, "F");
+      doc.setDrawColor(...accentBlue);
+      doc.setLineWidth(blueBorderWidth);
+      doc.line(margin, boxTop, margin, boxTop + actionBoxHeight);
 
-      doc.setTextColor(...bodyColor);
-      doc.text(lines, textX, blockTop, { baseline: "top" });
-
-      y = blockTop + textHeight + 4;
-    }
-
-    function addThemeSectionBreak(themeNumber, totalThemes) {
-      const gapBefore = (16 * 25.4) / 96;
-      const gapAfter = (12 * 25.4) / 96;
-      ensureSpace(gapBefore + 8 + gapAfter);
-      y += gapBefore;
-      doc.setDrawColor(...navy);
-      doc.setLineWidth(0.8);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 5;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(labelSize);
-      doc.setTextColor(...labelColor);
-      doc.text(`Theme ${themeNumber} of ${totalThemes}`.toUpperCase(), margin, y);
-      y += gapAfter;
+      doc.setTextColor(...accentBlue);
+      doc.text("RECOMMENDED ACTION", textX, boxTop + actionPadding + 2.5);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(bodySize);
+      doc.setTextColor(...bodyColor);
+      doc.text(actionLines, textX, boxTop + actionPadding + labelHeight + 3);
+
+      y = boxTop + actionBoxHeight + sectionGap;
+    }
+
+    function drawStatsRow(priority, accountsLine, oldestLine) {
+      const rowHeight = 16;
+      ensureSpace(rowHeight + sectionGap);
+      const rowTop = y;
+
+      doc.setFillColor(...statsGrey);
+      doc.rect(margin, rowTop, contentWidth, rowHeight, "F");
+
+      const colWidth = contentWidth / 3;
+      const stats = [
+        { label: "Priority", value: priority },
+        { label: "Requesting accounts", value: accountsLine },
+        { label: "Oldest request", value: oldestLine },
+      ];
+
+      stats.forEach((stat, index) => {
+        const colX = margin + colWidth * index + colWidth / 2;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(labelSize);
+        doc.setTextColor(...labelColor);
+        doc.text(stat.label.toUpperCase(), colX, rowTop + 5.5, { align: "center" });
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(...bodyColor);
+        const valueLines = doc.splitTextToSize(String(stat.value || "—"), colWidth - 4);
+        doc.text(valueLines[0], colX, rowTop + 11.5, { align: "center" });
+      });
+
+      y = rowTop + rowHeight + sectionGap;
     }
 
     clustersToExport.forEach((cluster, themeIndex) => {
       if (themeIndex > 0) {
-        addThemeSectionBreak(themeIndex + 1, clustersToExport.length);
+        doc.addPage();
       }
+      y = contentTop;
 
-      const themeDescriptionFull =
-        cluster.summary_full || cluster.theme_description_full || cluster.summary || "";
-      const recommendedDescription = cluster.recommended_action?.description || "";
-      const linkedTickets = (cluster.linked_tickets || cluster.ticket_ids || [])
-        .map((id) => resolveTicket(id))
-        .filter(Boolean);
+      const metrics = getThemeMetrics(cluster, [], resolveTicket);
+      const linkedTickets = metrics.tickets;
+      const summarySentence = getThemeSummarySentence(cluster);
+      const recommendedText =
+        cluster.recommended_action?.description ||
+        cluster.recommended_action?.title ||
+        "—";
       const accountRows = getAccountRowsFromTickets(linkedTickets);
-      const accountsLine = accountRows.map((row) => `${row.name} (${row.tier})`).join(" · ");
+      const accountsLine = accountRows.map((row) => row.name).join(", ") || "—";
+      const oldestLine =
+        metrics.oldestDays == null ? "—" : `${metrics.oldestDays} days ago`;
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(titleSize);
-    doc.setTextColor(...navy);
-    const themeTitleLines = doc.splitTextToSize(cluster.name || "Theme", contentWidth);
-    for (const line of themeTitleLines) {
-      ensureSpace(8);
-      doc.text(line, margin, y);
-      y += 8;
-    }
-    y += sectionGap;
+      addUppercaseLabel(`Theme ${themeIndex + 1} of ${clustersToExport.length}`);
+      y += 1;
 
-    renderThemeDescriptionFull(themeDescriptionFull);
-    y += sectionGap;
-
-    addUppercaseLabel("Requesting accounts");
-    addBodyParagraph(accountsLine || "—");
-    y += sectionGap;
-
-    addUppercaseLabel("Recommended action");
-    const actionPadding = 4;
-    const actionTextWidth = contentWidth - actionPadding - borderPad - 2;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(bodySize);
-    const actionLines = doc.splitTextToSize(recommendedDescription || "—", actionTextWidth);
-    const actionBoxHeight = actionPadding * 2 + actionLines.length * lineHeight;
-    ensureSpace(actionBoxHeight + 2);
-    doc.setFillColor(...lightBlue);
-    doc.rect(margin, y, contentWidth, actionBoxHeight, "F");
-    doc.setDrawColor(...accentBlue);
-    doc.setLineWidth(blueBorderWidth);
-    doc.line(margin, y, margin, y + actionBoxHeight);
-    doc.setTextColor(...bodyColor);
-    doc.text(actionLines, margin + actionPadding + borderPad, y + actionPadding + 4);
-    y += actionBoxHeight + sectionGap;
-
-    ensureSpace(4);
-    doc.setDrawColor(...ruleGrey);
-    doc.setLineWidth(0.2);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += sectionGap + 2;
-
-    addUppercaseLabel("Tickets");
-
-    linkedTickets.forEach((ticket, index) => {
-      ensureSpaceForTicketBlock(ticket);
-
-      const featureName = getTicketTitle(ticket) || "—";
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(ticketHeadingSize);
+      doc.setFontSize(titleSize);
       doc.setTextColor(...navy);
-      const nameLines = doc.splitTextToSize(featureName, contentWidth);
-      const headingLineHeight = doc.getTextDimensions("Mg").h;
-      for (const line of nameLines) {
-        ensureSpace(headingLineHeight);
+      const themeTitleLines = doc.splitTextToSize(cluster.name || "Theme", contentWidth);
+      for (const line of themeTitleLines) {
+        ensureSpace(7.5);
         doc.text(line, margin, y);
-        y += headingLineHeight;
+        y += 7.5;
       }
       y += 2;
 
-      drawTicketMetadataLine(ticket);
-      y += 4;
+      addBodyParagraph(summarySentence, { spacing: 5.2 });
+      y += sectionGap;
 
-      addLeftBorderedBlock("Feature request", ticket.feature_request_description, {
-        borderColor: ruleGrey,
-        borderWidth: 0.25,
+      drawRecommendedActionBox(recommendedText);
+      drawStatsRow(metrics.priorityLevel, accountsLine, oldestLine);
+
+      ensureSpace(4);
+      doc.setDrawColor(...ruleGrey);
+      doc.setLineWidth(0.2);
+      doc.line(margin, y, margin + contentWidth, y);
+      y += sectionGap + 1;
+
+      addUppercaseLabel("Ticket detail");
+      y += 1;
+
+      linkedTickets.forEach((ticket) => {
+        drawTicketBox(ticket);
       });
-
-      y += (8 * 25.4) / 96;
-
-      addLeftBorderedBlock("Why this matters to the customer", ticket.priority_justification, {
-        italic: true,
-        borderColor: accentBlue,
-        borderWidth: blueBorderWidth,
-      });
-
-      if (index < linkedTickets.length - 1) {
-        y += (20 * 25.4) / 96;
-        ensureSpace(2);
-        doc.setDrawColor(...ruleGrey);
-        doc.setLineWidth(0.15);
-        doc.line(margin, y, pageWidth - margin, y);
-        y += (12 * 25.4) / 96;
-      }
-    });
     });
 
     const totalPages = doc.internal.getNumberOfPages();
