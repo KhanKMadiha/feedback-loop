@@ -1564,7 +1564,8 @@ Ticket ids use the format "#184521".`;
           doc.text(sep, metaX, metaY);
           metaX += doc.getTextWidth(sep);
         }
-        doc.setTextColor(index === 2 ? pdfPriorityRgb(ticket.priority) : metaGrey);
+        const metaColor = index === 2 ? pdfPriorityRgb(ticket.priority) : metaGrey;
+        doc.setTextColor(...metaColor);
         doc.text(segment, metaX, metaY);
         metaX += doc.getTextWidth(segment);
       });
