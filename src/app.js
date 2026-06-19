@@ -43,14 +43,15 @@
 
   const PRODUCTION_PROXY_URL = "https://feedback-loop-proxy.madiha00.workers.dev";
 
-  /** Read proxy base URL from script tag; localhost always uses the dev worker. */
+  /** Local dev uses wrangler on :8787; deployed app uses data-proxy-url or production. */
   function getProxyUrl() {
     const host = window.location.hostname;
     if (host === "localhost" || host === "127.0.0.1") {
       return "http://localhost:8787";
     }
     const script = document.querySelector('script[src*="app.js"]');
-    return (script && script.dataset.proxyUrl) || PRODUCTION_PROXY_URL;
+    const configured = script?.dataset?.proxyUrl?.trim();
+    return (configured || PRODUCTION_PROXY_URL).replace(/\/$/, "");
   }
 
   // --- Storage ---
@@ -218,8 +219,13 @@ Ticket ids use the format "#184521".`;
       try {
         const parsed = JSON.parse(errBody);
         if (parsed.error) {
-          message =
-            typeof parsed.error === "string" ? parsed.error : JSON.stringify(parsed.error);
+          if (typeof parsed.error === "string") {
+            message = parsed.error;
+          } else if (parsed.error.message) {
+            message = parsed.error.message;
+          } else {
+            message = JSON.stringify(parsed.error);
+          }
         }
       } catch {
         if (errBody) message = errBody.slice(0, 280);
@@ -435,6 +441,15 @@ Ticket ids use the format "#184521".`;
     const msg = message || "Unknown error";
     if (msg.includes("Demo limit reached") || msg.includes("Origin not allowed")) {
       return msg;
+    }
+    if (msg.includes("Model not allowed")) {
+      return `${msg} Hard-refresh the page (Cmd+Shift+R) and redeploy the proxy worker.`;
+    }
+    if (msg.includes("not_found_error") || msg.includes("model:")) {
+      return "The configured Claude model is no longer available. Hard-refresh the page (Cmd+Shift+R). If the error persists, redeploy the proxy worker.";
+    }
+    if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("Load failed")) {
+      return "Could not reach the analysis proxy. For local dev, run npm run dev:proxy in a second terminal, or use the deployed dashboard.";
     }
     if (msg.includes("authentication_error") || msg.includes("invalid x-api-key")) {
       return `${msg} Check ANTHROPIC_API_KEY in workers/.dev.vars and restart the proxy.`;
@@ -1286,15 +1301,6 @@ Ticket ids use the format "#184521".`;
               </section>`
             : ""
         }
-
-        ${
-          metrics.linked
-            ? `<button type="button" class="btn btn--outline theme-detail-card__product-brief" data-action="export-brief-pdf">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Product brief
-              </button>`
-            : ""
-        }
       </article>`;
   }
 
@@ -1302,6 +1308,13 @@ Ticket ids use the format "#184521".`;
     const div = document.createElement("div");
     div.textContent = str == null ? "" : String(str);
     return div.innerHTML;
+  }
+
+  function productBriefExportButtonHtml() {
+    return `<button type="button" class="btn btn--outline theme-panel__export-brief" data-action="export-brief-pdf">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Product brief
+    </button>`;
   }
 
   function themeBriefFilename() {
@@ -1320,8 +1333,9 @@ Ticket ids use the format "#184521".`;
     return [107, 114, 128];
   }
 
-  function exportThemeBriefAsPdf(cluster, resolveTicket) {
-    if (!cluster || !window.jspdf?.jsPDF) {
+  function exportThemesBriefAsPdf(clusters, resolveTicket) {
+    const clustersToExport = (clusters || []).filter(Boolean);
+    if (!clustersToExport.length || !window.jspdf?.jsPDF) {
       throw new Error(
         !window.jspdf?.jsPDF
           ? "PDF library did not load. Refresh the page and try again."
@@ -1330,14 +1344,6 @@ Ticket ids use the format "#184521".`;
     }
 
     const { jsPDF } = window.jspdf;
-    const themeDescriptionFull =
-      cluster.summary_full || cluster.theme_description_full || cluster.summary || "";
-    const recommendedDescription = cluster.recommended_action?.description || "";
-    const linkedTickets = (cluster.linked_tickets || cluster.ticket_ids || [])
-      .map((id) => resolveTicket(id))
-      .filter(Boolean);
-    const accountRows = getAccountRowsFromTickets(linkedTickets);
-    const accountsLine = accountRows.map((row) => `${row.name} (${row.tier})`).join(" · ");
     const exportDate = new Date().toLocaleDateString("en-GB", {
       day: "numeric",
       month: "long",
@@ -1588,6 +1594,36 @@ Ticket ids use the format "#184521".`;
       y = blockTop + textHeight + 4;
     }
 
+    function addThemeSectionBreak(themeNumber, totalThemes) {
+      const gapBefore = (16 * 25.4) / 96;
+      const gapAfter = (12 * 25.4) / 96;
+      ensureSpace(gapBefore + 8 + gapAfter);
+      y += gapBefore;
+      doc.setDrawColor(...navy);
+      doc.setLineWidth(0.8);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(labelSize);
+      doc.setTextColor(...labelColor);
+      doc.text(`Theme ${themeNumber} of ${totalThemes}`.toUpperCase(), margin, y);
+      y += gapAfter;
+    }
+
+    clustersToExport.forEach((cluster, themeIndex) => {
+      if (themeIndex > 0) {
+        addThemeSectionBreak(themeIndex + 1, clustersToExport.length);
+      }
+
+      const themeDescriptionFull =
+        cluster.summary_full || cluster.theme_description_full || cluster.summary || "";
+      const recommendedDescription = cluster.recommended_action?.description || "";
+      const linkedTickets = (cluster.linked_tickets || cluster.ticket_ids || [])
+        .map((id) => resolveTicket(id))
+        .filter(Boolean);
+      const accountRows = getAccountRowsFromTickets(linkedTickets);
+      const accountsLine = accountRows.map((row) => `${row.name} (${row.tier})`).join(" · ");
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(titleSize);
     doc.setTextColor(...navy);
@@ -1671,6 +1707,7 @@ Ticket ids use the format "#184521".`;
         doc.line(margin, y, pageWidth - margin, y);
         y += (12 * 25.4) / 96;
       }
+    });
     });
 
     const totalPages = doc.internal.getNumberOfPages();
@@ -2500,9 +2537,9 @@ Ticket ids use the format "#184521".`;
       setThemesEmptyVisible(false);
 
       const visible = getVisibleTickets();
-      panel.innerHTML = lastClusters
+      panel.innerHTML = `<div class="theme-panel__export">${productBriefExportButtonHtml()}</div>${lastClusters
         .map((cluster, index) => renderThemePanelHtml(cluster, visible, resolveTicket, index))
-        .join("");
+        .join("")}`;
     }
 
     function updateTicketDetailNav() {
@@ -3094,11 +3131,8 @@ Ticket ids use the format "#184521".`;
         const exportBrief = e.target.closest('[data-action="export-brief-pdf"]');
         if (exportBrief) {
           e.preventDefault();
-          const card = exportBrief.closest(".theme-detail-card");
-          const themeIndex = Number(card?.dataset.themeIndex ?? 0);
-          const cluster = lastClusters[themeIndex];
           try {
-            if (cluster) exportThemeBriefAsPdf(cluster, resolveTicket);
+            exportThemesBriefAsPdf(lastClusters, resolveTicket);
           } catch (err) {
             showAlert(clusterAlert, err.message || "PDF export failed.", "error");
           }

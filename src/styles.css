@@ -2026,6 +2026,15 @@ html:has(body.dashboard-page) {
   padding: 0 1.25rem 1.75rem;
 }
 
+.theme-panel__export {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.theme-panel__export-brief {
+  gap: 0.4rem;
+}
+
 .theme-detail-card {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
