@@ -1345,20 +1345,65 @@ Ticket ids use the format "#184521".`;
     </button>`;
   }
 
+  function stripEmDashesForPdf(text) {
+    return String(text ?? "")
+      .replace(/\u2014/g, ", ")
+      .replace(/\u2013/g, ", ")
+      .replace(/\s+,/g, ",")
+      .replace(/,\s*,+/g, ", ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  function pdfDisplayText(text, fallback = "Not specified") {
+    const cleaned = stripEmDashesForPdf(text);
+    return cleaned || fallback;
+  }
+
+  function stripPriorityPrefixFromAction(text) {
+    return pdfDisplayText(text, "")
+      .replace(/^(Critical|High|Medium|Low)\s*:\s*/i, "")
+      .trim();
+  }
+
+  function splitRecommendedActionIntoTwoLines(text, doc, fontSize, textWidth) {
+    const cleaned = stripPriorityPrefixFromAction(text);
+    if (!cleaned) return ["Not specified"];
+
+    const explicitLines = cleaned
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => pdfDisplayText(line));
+    if (explicitLines.length >= 2) return explicitLines.slice(0, 2);
+
+    const sentenceSplit = cleaned.match(/^(.+?[.!?])\s+(.+)$/);
+    if (sentenceSplit) {
+      return [pdfDisplayText(sentenceSplit[1]), pdfDisplayText(sentenceSplit[2])];
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(fontSize);
+    const wrapped = doc.splitTextToSize(cleaned, textWidth);
+    if (wrapped.length <= 2) return wrapped;
+    const midpoint = Math.ceil(wrapped.length / 2);
+    return [wrapped.slice(0, midpoint).join(" "), wrapped.slice(midpoint).join(" ")];
+  }
+
   function getThemeSummarySentence(cluster) {
     const summary = cluster.summary || cluster.theme_description || "";
     const firstLine = String(summary)
       .split(/\n+/)
       .map((line) => line.trim())
       .find(Boolean);
-    if (firstLine) return firstLine;
+    if (firstLine) return pdfDisplayText(firstLine);
 
     const fullText = cluster.summary_full || cluster.theme_description_full || "";
     const fullFirstLine = String(fullText)
       .split(/\n+/)
       .map((line) => line.trim())
       .find((line) => line && !/^[•·\-*]\s/.test(line));
-    return fullFirstLine || "—";
+    return pdfDisplayText(fullFirstLine);
   }
 
   function themeBriefFilename() {
@@ -1422,10 +1467,15 @@ Ticket ids use the format "#184521".`;
     const labelSize = 7.5;
     const lineHeight = 4.8;
     const sectionGap = 5;
+    const sectionBreak = 8;
     const blueBorderWidth = 0.9;
     const boxPad = 3.5;
 
     let y = contentTop;
+
+    function addSectionBreak() {
+      y += sectionBreak;
+    }
 
     function drawPageHeader() {
       doc.setFillColor(...navy);
@@ -1476,7 +1526,7 @@ Ticket ids use the format "#184521".`;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(bodySize);
       doc.setTextColor(...bodyColor);
-      const lines = doc.splitTextToSize(String(text || "—"), width);
+      const lines = doc.splitTextToSize(pdfDisplayText(text), width);
       for (const line of lines) {
         ensureSpace(spacing);
         doc.text(line, x, y);
@@ -1487,7 +1537,7 @@ Ticket ids use the format "#184521".`;
     function measureLabelParagraphBlock(label, text, width) {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(bodySize);
-      const lines = doc.splitTextToSize(String(text || "—"), width);
+      const lines = doc.splitTextToSize(pdfDisplayText(text), width);
       return 4.2 + doc.getTextDimensions(lines).h + 2.5;
     }
 
@@ -1499,7 +1549,7 @@ Ticket ids use the format "#184521".`;
     function measureTicketBoxHeight(ticket, innerWidth) {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(ticketTitleSize);
-      const titleLines = doc.splitTextToSize(getTicketTitle(ticket) || "—", innerWidth - 28);
+      const titleLines = doc.splitTextToSize(pdfDisplayText(getTicketTitle(ticket)), innerWidth - 28);
       const headerHeight = Math.max(8, titleLines.length * 4.2 + 2.5);
       const metaHeight = 5.5;
       const needHeight = measureLabelParagraphBlock(
@@ -1519,7 +1569,7 @@ Ticket ids use the format "#184521".`;
       const innerWidth = contentWidth;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(ticketTitleSize);
-      const titleLines = doc.splitTextToSize(getTicketTitle(ticket) || "—", innerWidth - 34);
+      const titleLines = doc.splitTextToSize(pdfDisplayText(getTicketTitle(ticket)), innerWidth - 34);
       const headerHeight = Math.max(8, titleLines.length * 4.2 + 2.5);
       const boxHeight = measureTicketBoxHeight(ticket, innerWidth);
       ensureSpace(boxHeight + 4);
@@ -1543,15 +1593,15 @@ Ticket ids use the format "#184521".`;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(metaSize);
       doc.setTextColor(...metaGrey);
-      doc.text(ticket.id || "—", margin + innerWidth - boxPad, innerY + 5.2, { align: "right" });
+      doc.text(pdfDisplayText(ticket.id), margin + innerWidth - boxPad, innerY + 5.2, { align: "right" });
 
       innerY += headerHeight + 1.5;
 
       const segments = [
-        ticket.account_name || "—",
-        ticket.account_tier || "Free",
-        ticket.priority || "Low",
-        formatTicketDate(ticket.date),
+        pdfDisplayText(ticket.account_name),
+        pdfDisplayText(ticket.account_tier, "Free"),
+        pdfDisplayText(ticket.priority, "Low"),
+        pdfDisplayText(formatTicketDate(ticket.date)),
       ];
       doc.setFont("helvetica", "normal");
       doc.setFontSize(metaSize);
@@ -1594,9 +1644,7 @@ Ticket ids use the format "#184521".`;
       const actionPadding = 3.5;
       const textX = margin + blueBorderWidth + actionPadding + 1.5;
       const textWidth = contentWidth - blueBorderWidth - actionPadding * 2 - 2;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(bodySize);
-      const actionLines = doc.splitTextToSize(String(text || "—"), textWidth);
+      const actionLines = splitRecommendedActionIntoTwoLines(text, doc, bodySize, textWidth);
       const labelHeight = 4.2;
       const actionBoxHeight = actionPadding * 2 + labelHeight + actionLines.length * lineHeight;
 
@@ -1617,9 +1665,12 @@ Ticket ids use the format "#184521".`;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(bodySize);
       doc.setTextColor(...bodyColor);
-      doc.text(actionLines, textX, boxTop + actionPadding + labelHeight + 3);
+      actionLines.forEach((line, index) => {
+        doc.text(line, textX, boxTop + actionPadding + labelHeight + 3 + index * lineHeight);
+      });
 
-      y = boxTop + actionBoxHeight + sectionGap;
+      y = boxTop + actionBoxHeight;
+      addSectionBreak();
     }
 
     function drawStatsRow(priority, accountsLine, oldestLine) {
@@ -1647,11 +1698,12 @@ Ticket ids use the format "#184521".`;
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9.5);
         doc.setTextColor(...bodyColor);
-        const valueLines = doc.splitTextToSize(String(stat.value || "—"), colWidth - 4);
+        const valueLines = doc.splitTextToSize(pdfDisplayText(stat.value), colWidth - 4);
         doc.text(valueLines[0], colX, rowTop + 11.5, { align: "center" });
       });
 
-      y = rowTop + rowHeight + sectionGap;
+      y = rowTop + rowHeight;
+      addSectionBreak();
     }
 
     clustersToExport.forEach((cluster, themeIndex) => {
@@ -1666,11 +1718,11 @@ Ticket ids use the format "#184521".`;
       const recommendedText =
         cluster.recommended_action?.description ||
         cluster.recommended_action?.title ||
-        "—";
+        "";
       const accountRows = getAccountRowsFromTickets(linkedTickets);
-      const accountsLine = accountRows.map((row) => row.name).join(", ") || "—";
+      const accountsLine = accountRows.map((row) => row.name).join(", ");
       const oldestLine =
-        metrics.oldestDays == null ? "—" : `${metrics.oldestDays} days ago`;
+        metrics.oldestDays == null ? "" : `${metrics.oldestDays} days ago`;
 
       addUppercaseLabel(`Theme ${themeIndex + 1} of ${clustersToExport.length}`);
       y += 1;
@@ -1678,19 +1730,22 @@ Ticket ids use the format "#184521".`;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(titleSize);
       doc.setTextColor(...navy);
-      const themeTitleLines = doc.splitTextToSize(cluster.name || "Theme", contentWidth);
+      const themeTitleLines = doc.splitTextToSize(pdfDisplayText(cluster.name, "Theme"), contentWidth);
       for (const line of themeTitleLines) {
         ensureSpace(7.5);
         doc.text(line, margin, y);
         y += 7.5;
       }
-      y += 2;
+      addSectionBreak();
 
       addBodyParagraph(summarySentence, { spacing: 5.2 });
-      y += sectionGap;
 
       drawRecommendedActionBox(recommendedText);
-      drawStatsRow(metrics.priorityLevel, accountsLine, oldestLine);
+      drawStatsRow(
+        pdfDisplayText(metrics.priorityLevel),
+        pdfDisplayText(accountsLine),
+        pdfDisplayText(oldestLine)
+      );
 
       ensureSpace(4);
       doc.setDrawColor(...ruleGrey);
@@ -1699,7 +1754,7 @@ Ticket ids use the format "#184521".`;
       y += sectionGap + 1;
 
       addUppercaseLabel("Ticket detail");
-      y += 1;
+      addSectionBreak();
 
       linkedTickets.forEach((ticket) => {
         drawTicketBox(ticket);
