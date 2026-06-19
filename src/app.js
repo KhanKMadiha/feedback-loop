@@ -858,6 +858,24 @@ Ticket ids use the format "#184521".`;
     return "Not set";
   }
 
+  function getHighestPriorityAcrossThemes(clusters) {
+    const priorityOrder = ["Critical", "High", "Medium", "Low"];
+    for (const level of priorityOrder) {
+      if (clusters.some((cluster) => (cluster.priority || "").toLowerCase() === level.toLowerCase())) {
+        return level;
+      }
+    }
+    return "Not set";
+  }
+
+  function buildThemeAnalysisSummary(clusters, ticketCount) {
+    const themeCount = clusters.length;
+    const themeLabel = themeCount === 1 ? "theme" : "themes";
+    const ticketLabel = ticketCount === 1 ? "ticket" : "tickets";
+    const highestPriority = getHighestPriorityAcrossThemes(clusters);
+    return `${themeCount} ${themeLabel} across ${ticketCount} ${ticketLabel} · Highest priority: ${highestPriority}`;
+  }
+
   function getOldestRequestDate(cluster, tickets) {
     if (cluster.oldest_request_date) return cluster.oldest_request_date;
     let oldest = null;
@@ -1210,97 +1228,107 @@ Ticket ids use the format "#184521".`;
     return "Lower urgency relative to other themes, but still worth tracking for emerging patterns.";
   }
 
-  function renderThemePanelHtml(cluster, visibleTickets, resolveTicket, themeIndex = 0) {
+  function getThemeCategoryFromTickets(tickets) {
+    if (!tickets.length) return "—";
+    const counts = new Map();
+    for (const ticket of tickets) {
+      const category = getTicketCategory(ticket);
+      counts.set(category, (counts.get(category) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+
+  function mergeUniqueTicketFields(tickets, field) {
+    const values = [];
+    const seen = new Set();
+    for (const ticket of tickets) {
+      const text = String(ticket[field] || "").trim();
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      values.push(text);
+    }
+    return values.join(" ") || "—";
+  }
+
+  function themePriorityStatClass(priority) {
+    const level = String(priority || "").toLowerCase();
+    if (level === "critical") return "theme-detail-card__stat-value--critical";
+    if (level === "high") return "theme-detail-card__stat-value--high";
+    if (level === "medium") return "theme-detail-card__stat-value--medium";
+    if (level === "low") return "theme-detail-card__stat-value--low";
+    return "";
+  }
+
+  function renderThemePanelHtml(cluster, visibleTickets, resolveTicket, themeIndex = 0, totalThemes = 1) {
     const metrics = getThemeMetrics(cluster, visibleTickets, resolveTicket);
     const recommended = cluster.recommended_action;
-    const recommendedTitle = recommended?.title || "";
-    const descriptionLines = getThemeDescriptionLines(cluster.summary);
-    const affectedAccounts = getAffectedAccountsWithTier(metrics.tickets);
-    const accountPills = affectedAccounts
-      .map(
-        ({ name, tier }) =>
-          `<span class="theme-detail-card__account-pill ${accountPillClass(tier)}">${escapeHtml(name)}</span>`
-      )
-      .join("");
-    const descriptionHtml = descriptionLines.length
-      ? `<ul class="theme-detail-card__description">${descriptionLines
-          .map((line) => `<li>${escapeHtml(line)}</li>`)
-          .join("")}</ul>`
-      : "";
+    const recommendedTitle = recommended?.title || "—";
+    const tickets = metrics.tickets;
+    const categoryLabel = getThemeCategoryFromTickets(tickets);
+    const whatTheyNeed = mergeUniqueTicketFields(tickets, "feature_request_description");
+    const businessImpact = mergeUniqueTicketFields(tickets, "priority_justification");
+    const ticketsStat =
+      metrics.linked === 1 ? "1 linked" : `${metrics.linked} linked`;
+    const oldestStat =
+      metrics.oldestDays == null ? "—" : `${metrics.oldestDays} days ago`;
+    const positionLabel = `${themeIndex + 1} of ${totalThemes}`;
 
-    const oldestRequestHtml =
-      metrics.oldestDays == null
-        ? `<span class="theme-detail-card__metric-value">—</span>`
-        : `<span class="theme-detail-card__metric-value theme-detail-card__metric-value--oldest">
-            <span class="theme-detail-card__oldest-num">${metrics.oldestDays}</span>
-            <span class="theme-detail-card__oldest-unit">days ago</span>
-          </span>`;
-
-    const ticketPills = metrics.ticketIds
+    const footerRows = tickets
       .map(
-        (id) => `
-        <button type="button" class="theme-detail-card__ticket-pill ticket-tag--link" data-ticket-id="${escapeHtml(id)}">
-          ${escapeHtml(id)}
-        </button>`
+        (ticket) => `
+        <div class="theme-detail-card__footer-row">
+          <div class="theme-detail-card__footer-submitter">
+            <span class="theme-detail-card__section-label">Submitted by</span>
+            <span class="theme-detail-card__account-pill ${accountPillClass(ticket.account_tier)}">${escapeHtml(ticket.account_name || "—")}</span>
+          </div>
+          <button type="button" class="theme-detail-card__footer-ticket ticket-tag--link" data-ticket-id="${escapeHtml(ticket.id)}">${escapeHtml(ticket.id)}</button>
+        </div>`
       )
       .join("");
 
     return `
       <article class="theme-detail-card" data-theme-index="${themeIndex}">
-        <header class="theme-detail-card__header">
-          <div class="theme-detail-card__title-row">
-            <span class="theme-detail-card__icon-wrap">${themeIconSvg()}</span>
-            <h3 class="theme-detail-card__title">${escapeHtml(cluster.name)}</h3>
-          </div>
-        </header>
+        <div class="theme-detail-card__meta">
+          <span class="theme-detail-card__position">${escapeHtml(positionLabel)}</span>
+          <span class="theme-detail-card__category">${escapeHtml(categoryLabel)}</span>
+        </div>
+        <h3 class="theme-detail-card__title">${escapeHtml(cluster.name)}</h3>
 
-        ${descriptionHtml}
+        <section class="theme-detail-card__recommended">
+          <span class="theme-detail-card__recommended-label">Recommended action</span>
+          <p class="theme-detail-card__recommended-text">${escapeHtml(recommendedTitle)}</p>
+        </section>
 
-        <hr class="theme-detail-card__divider" aria-hidden="true" />
-
-        <div class="theme-detail-card__metrics" aria-label="Theme metrics">
-          <div class="theme-detail-card__metric">
-            <span class="theme-detail-card__metric-label">Linked tickets</span>
-            <span class="theme-detail-card__metric-value">${metrics.linked}</span>
+        <div class="theme-detail-card__stats" aria-label="Theme metrics">
+          <div class="theme-detail-card__stat">
+            <span class="theme-detail-card__stat-label">Priority</span>
+            <span class="theme-detail-card__stat-value ${themePriorityStatClass(metrics.priorityLevel)}">${escapeHtml(metrics.priorityLevel)}</span>
           </div>
-          <div class="theme-detail-card__metric">
-            <span class="theme-detail-card__metric-label">Priority</span>
-            <span class="theme-detail-card__metric-value"><span class="badge ${ticketPriorityBadgeClass(metrics.priorityLevel)}">${escapeHtml(metrics.priorityLevel)}</span></span>
+          <div class="theme-detail-card__stat">
+            <span class="theme-detail-card__stat-label">Tickets</span>
+            <span class="theme-detail-card__stat-value">${escapeHtml(ticketsStat)}</span>
           </div>
-          <div class="theme-detail-card__metric">
-            <span class="theme-detail-card__metric-label">Oldest request</span>
-            ${oldestRequestHtml}
+          <div class="theme-detail-card__stat">
+            <span class="theme-detail-card__stat-label">Oldest</span>
+            <span class="theme-detail-card__stat-value">${escapeHtml(oldestStat)}</span>
           </div>
         </div>
 
         <hr class="theme-detail-card__divider" aria-hidden="true" />
 
-        ${
-          accountPills
-            ? `<section class="theme-detail-card__submitted-by">
-                <h4 class="theme-detail-card__submitted-by-title">Submitted by</h4>
-                <div class="theme-detail-card__account-pills">${accountPills}</div>
-              </section>`
-            : ""
-        }
+        <section class="theme-detail-card__section">
+          <h4 class="theme-detail-card__section-label">What they need</h4>
+          <p class="theme-detail-card__section-text">${escapeHtml(whatTheyNeed)}</p>
+        </section>
 
-        ${
-          recommendedTitle
-            ? `<section class="theme-detail-card__recommended">
-                <span class="theme-detail-card__recommended-label">Recommended action</span>
-                <h4 class="theme-detail-card__recommended-title">${escapeHtml(recommendedTitle)}</h4>
-              </section>`
-            : ""
-        }
+        <hr class="theme-detail-card__divider" aria-hidden="true" />
 
-        ${
-          ticketPills
-            ? `<section class="theme-detail-card__linked">
-                <h4 class="theme-detail-card__linked-title">Linked tickets</h4>
-                <div class="theme-detail-card__ticket-pills">${ticketPills}</div>
-              </section>`
-            : ""
-        }
+        <section class="theme-detail-card__section">
+          <h4 class="theme-detail-card__section-label">Business impact</h4>
+          <p class="theme-detail-card__section-text">${escapeHtml(businessImpact)}</p>
+        </section>
+
+        ${footerRows ? `<div class="theme-detail-card__footers">${footerRows}</div>` : ""}
       </article>`;
   }
 
@@ -2443,6 +2471,7 @@ Ticket ids use the format "#184521".`;
     let ticketDetailIndex = -1;
     let scrollDetailToTicketGrid = true;
     let lastClusters = [];
+    let lastAnalyzedTicketCount = 0;
     let lastLinkedTicketIds = [];
 
     function getVisibleTickets() {
@@ -2522,6 +2551,7 @@ Ticket ids use the format "#184521".`;
 
       if (!lastClusters.length) {
         panel.innerHTML = "";
+        lastAnalyzedTicketCount = 0;
         if (results) results.hidden = true;
         if (stepThemesSubtitle) {
           stepThemesSubtitle.textContent = "Select tickets using the checkboxes, then click Analyse.";
@@ -2537,9 +2567,12 @@ Ticket ids use the format "#184521".`;
       setThemesEmptyVisible(false);
 
       const visible = getVisibleTickets();
-      panel.innerHTML = `<div class="theme-panel__export">${productBriefExportButtonHtml()}</div>${lastClusters
-        .map((cluster, index) => renderThemePanelHtml(cluster, visible, resolveTicket, index))
-        .join("")}`;
+      const summaryText = buildThemeAnalysisSummary(lastClusters, lastAnalyzedTicketCount);
+      panel.innerHTML = `<p class="theme-panel__summary">${escapeHtml(summaryText)}</p>${lastClusters
+        .map((cluster, index) =>
+          renderThemePanelHtml(cluster, visible, resolveTicket, index, lastClusters.length)
+        )
+        .join("")}<div class="theme-panel__export">${productBriefExportButtonHtml()}</div>`;
     }
 
     function updateTicketDetailNav() {
@@ -2550,7 +2583,7 @@ Ticket ids use the format "#184521".`;
     }
 
     function updateClusterTicketTagActive(activeTicketId) {
-      document.querySelectorAll(".ticket-tag--link, .theme-detail-card__ticket-pill").forEach((btn) => {
+      document.querySelectorAll(".ticket-tag--link, .theme-detail-card__footer-ticket").forEach((btn) => {
         btn.classList.toggle("ticket-tag--active", btn.dataset.ticketId === activeTicketId);
       });
     }
@@ -3193,6 +3226,7 @@ Ticket ids use the format "#184521".`;
 
       try {
         const result = await clusterTicketsWithClaude(ticketsToAnalyse);
+        lastAnalyzedTicketCount = ticketsToAnalyse.length;
         renderThemeResults(result.clusters);
       } catch (err) {
         showAlert(clusterAlert, formatSynthesisError(err.message), "error");
